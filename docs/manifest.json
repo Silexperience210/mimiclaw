@@ -1,6 +1,6 @@
 {
   "name": "LilyClaw (MimiClaw for T-Display S3)",
-  "version": "latest",
+  "version": "main",
   "new_install_prompt_erase": true,
   "builds": [
     {
