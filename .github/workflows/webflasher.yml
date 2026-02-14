@@ -46,7 +46,6 @@ jobs:
           cp build/partition_table/partition-table.bin  docs/firmware/v1.2/
           cp build/ota_data_initial.bin                 docs/firmware/v1.2/
           cp build/mimiclaw.bin                         docs/firmware/v1.2/
-          git checkout -- sdkconfig.defaults
 
       - name: Generate manifests
         shell: bash
