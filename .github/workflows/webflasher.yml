@@ -1,0 +1,87 @@
+name: Build & Deploy Web Flasher
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v5.5.2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build firmware
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py set-target esp32s3
+          idf.py build
+
+      - name: Prepare firmware binaries
+        shell: bash
+        run: |
+          mkdir -p webflasher/firmware
+          cp build/bootloader/bootloader.bin           webflasher/firmware/
+          cp build/partition_table/partition-table.bin  webflasher/firmware/
+          cp build/ota_data_initial.bin                 webflasher/firmware/
+          cp build/mimiclaw.bin                         webflasher/firmware/
+
+      - name: Generate manifest.json
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          cat > webflasher/manifest.json << MANIFEST
+          {
+            "name": "MimiClaw",
+            "version": "${VERSION}",
+            "new_install_prompt_erase": true,
+            "builds": [
+              {
+                "chipFamily": "ESP32-S3",
+                "parts": [
+                  { "path": "firmware/bootloader.bin", "offset": 0 },
+                  { "path": "firmware/partition-table.bin", "offset": 32768 },
+                  { "path": "firmware/ota_data_initial.bin", "offset": 61440 },
+                  { "path": "firmware/mimiclaw.bin", "offset": 131072 }
+                ]
+              }
+            ]
+          }
+          MANIFEST
+
+      - name: Copy web flasher page
+        shell: bash
+        run: |
+          cp docs/webflasher.html webflasher/index.html
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: webflasher
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LilyClaw — Web Flasher</title>
+  <meta name="description" content="Flash LilyClaw AI firmware to your ESP32-S3 directly from the browser">
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    :root {
+      --bg: #05050a;
+      --card-bg: rgba(12,12,20,0.85);
+      --card-border: rgba(168,85,247,0.08);
+      --card-border-hover: rgba(168,85,247,0.2);
+      --text: #e8e8f0;
+      --text-dim: #6b6b80;
+      --text-muted: #3a3a50;
+      --accent: #a855f7;
+      --accent2: #06b6d4;
+      --glow: rgba(168,85,247,0.12);
+      --glow2: rgba(6,182,212,0.12);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* WebGL Canvas */
+    #glCanvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 0;
+    }
+
+    /* Content over canvas */
+    .overlay {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 60px 24px 40px;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+
+    .logo-glow {
+      position: relative;
+      display: inline-block;
+      font-size: 72px;
+      margin-bottom: 20px;
+      filter: drop-shadow(0 0 40px rgba(168,85,247,0.5)) drop-shadow(0 0 80px rgba(6,182,212,0.3));
+      animation: pulse-glow 4s ease-in-out infinite;
+    }
+
+    @keyframes pulse-glow {
+      0%,100% { filter: drop-shadow(0 0 40px rgba(168,85,247,0.5)) drop-shadow(0 0 80px rgba(6,182,212,0.3)); }
+      50% { filter: drop-shadow(0 0 60px rgba(168,85,247,0.7)) drop-shadow(0 0 100px rgba(6,182,212,0.5)); }
+    }
+
+    .title {
+      font-size: 42px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+    }
+
+    .title-grad {
+      background: linear-gradient(135deg, #c084fc, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      font-size: 15px;
+      color: var(--text-dim);
+      font-weight: 400;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+    }
+
+    /* Hero card with glass morphism */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 36px;
+      margin-bottom: 24px;
+      backdrop-filter: blur(20px) saturate(1.5);
+      -webkit-backdrop-filter: blur(20px) saturate(1.5);
+      transition: border-color 0.4s, box-shadow 0.4s;
+    }
+
+    .card:hover {
+      border-color: var(--card-border-hover);
+      box-shadow: 0 0 40px var(--glow);
+    }
+
+    .card-hero {
+      text-align: center;
+      padding: 56px 36px;
+      border: 1px solid rgba(168,85,247,0.12);
+      background: linear-gradient(160deg, rgba(168,85,247,0.06), rgba(6,182,212,0.04), var(--card-bg));
+    }
+
+    .card-hero:hover {
+      box-shadow: 0 0 60px var(--glow), 0 0 120px var(--glow2);
+    }
+
+    .card h2 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      margin-bottom: 16px;
+    }
+
+    .card p {
+      color: var(--text-dim);
+      font-size: 14px;
+      line-height: 1.7;
+      margin-bottom: 8px;
+    }
+
+    /* Install button */
+    .install-wrap {
+      margin: 32px 0 20px;
+      position: relative;
+    }
+
+    .install-wrap::before {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      opacity: 0;
+      transition: opacity 0.4s;
+      z-index: -1;
+      filter: blur(20px);
+    }
+
+    .install-wrap:hover::before {
+      opacity: 0.4;
+    }
+
+    esp-web-install-button { display: inline-block; }
+
+    esp-web-install-button button {
+      padding: 18px 56px;
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), #7c3aed, var(--accent2));
+      background-size: 200% 200%;
+      animation: gradient-shift 5s ease infinite;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.3s;
+      letter-spacing: 0.5px;
+    }
+
+    @keyframes gradient-shift {
+      0%,100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+
+    esp-web-install-button button:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 12px 40px rgba(168,85,247,0.5), 0 4px 20px rgba(6,182,212,0.3);
+    }
+
+    .browser-note {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 16px;
+    }
+
+    .browser-note a { color: var(--text-dim); text-decoration: none; }
+
+    /* Steps with animated borders */
+    .steps { display: grid; gap: 12px; }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 18px;
+      background: rgba(255,255,255,0.015);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      transition: all 0.3s;
+    }
+
+    .step:hover {
+      border-color: rgba(168,85,247,0.15);
+      background: rgba(168,85,247,0.03);
+    }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 28px; height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, var(--glow), var(--glow2));
+      border: 1px solid rgba(168,85,247,0.2);
+      border-radius: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .step h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .step p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      padding: 2px 6px;
+      background: rgba(168,85,247,0.1);
+      border-radius: 4px;
+      color: var(--accent);
+    }
+
+    .code-cyan { color: var(--accent2); background: rgba(6,182,212,0.1); }
+
+    /* Specs */
+    .specs { width: 100%; border-collapse: collapse; }
+    .specs tr { border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .specs tr:last-child { border-bottom: none; }
+    .specs td { padding: 12px 0; font-size: 13px; }
+    .specs td:first-child { color: var(--text-muted); width: 130px; font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+    .specs td:last-child { color: var(--text-dim); font-weight: 500; }
+
+    /* Warning */
+    .warn {
+      display: flex;
+      gap: 12px;
+      padding: 14px 16px;
+      background: rgba(245,158,11,0.04);
+      border: 1px solid rgba(245,158,11,0.1);
+      border-radius: 10px;
+      margin-top: 20px;
+    }
+    .warn p { font-size: 12px; color: rgba(245,158,11,0.7); margin: 0; }
+
+    /* Not supported */
+    .no-support {
+      display: none;
+      text-align: center;
+      padding: 20px;
+      background: rgba(239,68,68,0.05);
+      border: 1px solid rgba(239,68,68,0.12);
+      border-radius: 12px;
+      color: rgba(239,68,68,0.8);
+      font-size: 13px;
+      margin: 20px 0;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 48px 0 20px;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 28px;
+      margin-bottom: 20px;
+    }
+
+    .footer-links a {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-decoration: none;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      transition: color 0.3s;
+    }
+
+    .footer-links a:hover { color: var(--accent); }
+
+    .footer-brand {
+      font-size: 10px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .footer-brand span {
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    @media (max-width: 480px) {
+      .container { padding: 32px 16px; }
+      .card { padding: 24px 18px; }
+      .card-hero { padding: 36px 18px; }
+      .title { font-size: 32px; }
+      .logo-glow { font-size: 56px; }
+      esp-web-install-button button { padding: 16px 40px; font-size: 15px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- WebGL Background -->
+<canvas id="glCanvas"></canvas>
+
+<div class="overlay">
+<div class="container">
+
+  <div class="header">
+    <div class="logo-glow">&#128049;</div>
+    <div class="title"><span class="title-grad">LilyClaw</span></div>
+    <div class="subtitle">Web Flasher</div>
+  </div>
+
+  <!-- Flash Card -->
+  <div class="card card-hero">
+    <h2>// install firmware</h2>
+    <p>Flash LilyClaw AI firmware to your ESP32-S3 board directly from the browser.<br>No tools. No drivers. Just USB and one click.</p>
+
+    <div class="install-wrap">
+      <esp-web-install-button manifest="manifest.json">
+        <button slot="activate">Flash LilyClaw</button>
+      </esp-web-install-button>
+    </div>
+
+    <div class="browser-note">
+      Requires <a href="https://www.google.com/chrome/">Chrome</a> or Edge &middot; WebSerial API
+    </div>
+
+    <div class="no-support" id="noSupport">
+      WebSerial not available. Use Chrome or Edge on desktop.
+    </div>
+  </div>
+
+  <!-- Steps -->
+  <div class="card">
+    <h2>// setup guide</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h3>Plug in your ESP32-S3</h3>
+          <p>USB-C data cable. T-Display S3 has native USB.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h3>Click "Flash LilyClaw"</h3>
+          <p>Select the serial port. Firmware writes in ~30 seconds.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h3>Connect to WiFi <code>LilyClaw-Setup</code></h3>
+          <p>Device starts an access point. Password: <code>mimiclaw1</code></p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h3>Configure at <code class="code-cyan">192.168.4.1</code></h3>
+          <p>Set WiFi, Telegram token, Claude API key. Save & reboot.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="warn">
+      <div>&#9888;&#65039;</div>
+      <p>First install erases all data. Updates preserve your config.</p>
+    </div>
+  </div>
+
+  <!-- Specs -->
+  <div class="card">
+    <h2>// requirements</h2>
+    <table class="specs">
+      <tr><td>Board</td><td>ESP32-S3 &middot; 16MB flash &middot; 8MB PSRAM</td></tr>
+      <tr><td>Tested</td><td>LilyGo T-Display S3, Xiaozhi AI</td></tr>
+      <tr><td>Browser</td><td>Chrome 89+ or Edge 89+</td></tr>
+      <tr><td>Cable</td><td>USB-C (data, not charge-only)</td></tr>
+      <tr><td>Accounts</td><td>Telegram Bot + Anthropic API key</td></tr>
+    </table>
+  </div>
+
+  <div class="footer">
+    <div class="footer-links">
+      <a href="https://github.com/Silexperience210/mimiclaw">GitHub</a>
+      <a href="https://github.com/Silexperience210/mimiclaw/blob/main/README.md">Docs</a>
+      <a href="https://github.com/Silexperience210/mimiclaw/releases">Releases</a>
+    </div>
+    <div class="footer-brand">by <span>Silexperience</span></div>
+  </div>
+
+</div>
+</div>
+
+<!-- ============================================================
+     WebGL: Animated neural network / particle mesh
+     ============================================================ -->
+<script>
+(function() {
+  const canvas = document.getElementById('glCanvas');
+  const gl = canvas.getContext('webgl', { alpha: true, antialias: true });
+  if (!gl) return;
+
+  function resize() {
+    canvas.width = window.innerWidth * devicePixelRatio;
+    canvas.height = window.innerHeight * devicePixelRatio;
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Shaders
+  const vsSource = `
+    attribute vec2 aPos;
+    attribute float aAlpha;
+    varying float vAlpha;
+    void main() {
+      vAlpha = aAlpha;
+      gl_Position = vec4(aPos, 0.0, 1.0);
+      gl_PointSize = 2.0;
+    }
+  `;
+
+  const fsSource = `
+    precision mediump float;
+    varying float vAlpha;
+    uniform vec3 uColor;
+    void main() {
+      gl_FragColor = vec4(uColor, vAlpha);
+    }
+  `;
+
+  function createShader(type, source) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, source);
+    gl.compileShader(s);
+    return s;
+  }
+
+  const vs = createShader(gl.VERTEX_SHADER, vsSource);
+  const fs = createShader(gl.FRAGMENT_SHADER, fsSource);
+  const prog = gl.createProgram();
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+
+  const aPos = gl.getAttribLocation(prog, 'aPos');
+  const aAlpha = gl.getAttribLocation(prog, 'aAlpha');
+  const uColor = gl.getUniformLocation(prog, 'uColor');
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  // Particles
+  const N = 80;
+  const particles = [];
+  for (let i = 0; i < N; i++) {
+    particles.push({
+      x: Math.random() * 2 - 1,
+      y: Math.random() * 2 - 1,
+      vx: (Math.random() - 0.5) * 0.0008,
+      vy: (Math.random() - 0.5) * 0.0008,
+    });
+  }
+
+  const connectDist = 0.35;
+
+  function frame() {
+    gl.clearColor(0.02, 0.02, 0.04, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    // Update positions
+    for (const p of particles) {
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x < -1 || p.x > 1) p.vx *= -1;
+      if (p.y < -1 || p.y > 1) p.vy *= -1;
+    }
+
+    // Build line data (connections)
+    const lines = [];
+    for (let i = 0; i < N; i++) {
+      for (let j = i + 1; j < N; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < connectDist) {
+          const alpha = (1 - dist / connectDist) * 0.15;
+          lines.push(particles[i].x, particles[i].y, alpha);
+          lines.push(particles[j].x, particles[j].y, alpha);
+        }
+      }
+    }
+
+    // Draw lines
+    if (lines.length > 0) {
+      const lineData = new Float32Array(lines);
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, lineData, gl.DYNAMIC_DRAW);
+
+      gl.enableVertexAttribArray(aPos);
+      gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 12, 0);
+      gl.enableVertexAttribArray(aAlpha);
+      gl.vertexAttribPointer(aAlpha, 1, gl.FLOAT, false, 12, 8);
+
+      gl.uniform3f(uColor, 0.66, 0.33, 0.97); // purple
+      gl.drawArrays(gl.LINES, 0, lines.length / 3);
+      gl.deleteBuffer(buf);
+    }
+
+    // Draw points
+    const points = [];
+    for (const p of particles) {
+      points.push(p.x, p.y, 0.5);
+    }
+    const pointData = new Float32Array(points);
+    const pbuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, pbuf);
+    gl.bufferData(gl.ARRAY_BUFFER, pointData, gl.DYNAMIC_DRAW);
+
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 12, 0);
+    gl.enableVertexAttribArray(aAlpha);
+    gl.vertexAttribPointer(aAlpha, 1, gl.FLOAT, false, 12, 8);
+
+    gl.uniform3f(uColor, 0.4, 0.8, 0.95); // cyan
+    gl.drawArrays(gl.POINTS, 0, N);
+    gl.deleteBuffer(pbuf);
+
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+})();
+
+// WebSerial detection
+if (!("serial" in navigator)) {
+  document.getElementById("noSupport").style.display = "block";
+}
+</script>
+
+</body>
+</html>
