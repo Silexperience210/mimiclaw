@@ -1,4 +1,4 @@
-name: Build & Deploy Web Flasher
+name: Build & Update Web Flasher
 
 on:
   push:
@@ -7,16 +7,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  contents: write
 
 jobs:
-  build:
+  build-and-commit:
     runs-on: ubuntu-latest
     container:
       image: espressif/idf:v5.5.2
@@ -24,6 +18,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build firmware
         shell: bash
@@ -32,23 +28,23 @@ jobs:
           idf.py set-target esp32s3
           idf.py build
 
-      - name: Prepare firmware binaries
+      - name: Copy binaries to docs/firmware
         shell: bash
         run: |
-          mkdir -p webflasher/firmware
-          cp build/bootloader/bootloader.bin           webflasher/firmware/
-          cp build/partition_table/partition-table.bin  webflasher/firmware/
-          cp build/ota_data_initial.bin                 webflasher/firmware/
-          cp build/mimiclaw.bin                         webflasher/firmware/
+          mkdir -p docs/firmware
+          cp build/bootloader/bootloader.bin           docs/firmware/
+          cp build/partition_table/partition-table.bin  docs/firmware/
+          cp build/ota_data_initial.bin                 docs/firmware/
+          cp build/mimiclaw.bin                         docs/firmware/
 
-      - name: Generate manifest.json
+      - name: Update manifest version
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME:-dev}"
-          cat > webflasher/manifest.json << MANIFEST
+          cat > docs/manifest.json << 'ENDMANIFEST'
           {
-            "name": "MimiClaw",
-            "version": "${VERSION}",
+            "name": "LilyClaw (MimiClaw for T-Display S3)",
+            "version": "VERSION_PLACEHOLDER",
             "new_install_prompt_erase": true,
             "builds": [
               {
@@ -62,26 +58,15 @@ jobs:
               }
             ]
           }
-          MANIFEST
+          ENDMANIFEST
+          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/" docs/manifest.json
 
-      - name: Copy web flasher page
+      - name: Commit and push firmware binaries
         shell: bash
         run: |
-          cp docs/webflasher.html webflasher/index.html
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: webflasher
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/firmware/ docs/manifest.json
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "chore: update web flasher firmware binaries (${GITHUB_REF_NAME:-manual})"
+          git push origin HEAD:main
