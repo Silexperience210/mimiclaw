@@ -1,6 +1,6 @@
 {
   "name": "LilyClaw v1 (sans ecran)",
-  "version": "dev",
+  "version": "main",
   "new_install_prompt_erase": true,
   "builds": [
     {
