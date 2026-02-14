@@ -4,6 +4,7 @@
 [![DeepWiki](https://img.shields.io/badge/DeepWiki-mimiclaw-blue.svg)](https://deepwiki.com/memovai/mimiclaw)
 [![Discord](https://img.shields.io/badge/Discord-mimiclaw-5865F2?logo=discord&logoColor=white)](https://discord.gg/r8ZxSvB8Yr)
 [![X](https://img.shields.io/badge/X-@ssslvky-black?logo=x)](https://x.com/ssslvky)
+[![Flash](https://img.shields.io/badge/⚡_Web_Flasher-LilyClaw-ff4500?style=for-the-badge)](https://silexperience210.github.io/lilyclaw/)
 
 **[English](README.md) | [中文](README_CN.md)**
 
@@ -38,7 +39,13 @@ You send a message on Telegram. The ESP32-S3 picks it up over WiFi, feeds it int
 - A **Telegram bot token** — talk to [@BotFather](https://t.me/BotFather) on Telegram to create one
 - An **Anthropic API key** — from [console.anthropic.com](https://console.anthropic.com)
 
-### Install
+### Web Flash (easy — no tools needed)
+
+> **[⚡ Flash LilyClaw from your browser](https://silexperience210.github.io/lilyclaw/)** — plug USB, click flash, done.
+
+Works with Chrome/Edge. Flashes the latest firmware to your ESP32-S3 in 30 seconds. After flashing, connect to the `MimiClaw-Setup` WiFi and configure everything from your phone at `192.168.4.1`.
+
+### Install (advanced — build from source)
 
 ```bash
 # You need ESP-IDF v5.5+ installed first:
