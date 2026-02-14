@@ -144,6 +144,52 @@ esp_err_t wifi_manager_set_credentials(const char *ssid, const char *password)
     return ESP_OK;
 }
 
+bool wifi_manager_has_credentials(void)
+{
+    /* Verifier NVS d'abord */
+    nvs_handle_t nvs;
+    if (nvs_open(MIMI_NVS_WIFI, NVS_READONLY, &nvs) == ESP_OK) {
+        char ssid[33] = {0};
+        size_t len = sizeof(ssid);
+        esp_err_t err = nvs_get_str(nvs, MIMI_NVS_KEY_SSID, ssid, &len);
+        nvs_close(nvs);
+        if (err == ESP_OK && ssid[0] != '\0') return true;
+    }
+    /* Verifier build-time */
+    return (MIMI_SECRET_WIFI_SSID[0] != '\0');
+}
+
+esp_err_t wifi_manager_start_ap(const char *ssid, const char *password)
+{
+    esp_netif_create_default_wifi_ap();
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+
+    wifi_config_t ap_cfg = {
+        .ap = {
+            .channel = MIMI_PORTAL_AP_CHANNEL,
+            .max_connection = MIMI_PORTAL_AP_MAX_CONN,
+            .authmode = WIFI_AUTH_WPA2_PSK,
+        },
+    };
+    strncpy((char *)ap_cfg.ap.ssid, ssid, sizeof(ap_cfg.ap.ssid) - 1);
+    ap_cfg.ap.ssid_len = strlen(ssid);
+    strncpy((char *)ap_cfg.ap.password, password, sizeof(ap_cfg.ap.password) - 1);
+
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_cfg));
+    ESP_ERROR_CHECK(esp_wifi_start());
+
+    ESP_LOGI(TAG, "SoftAP started: SSID=%s, pass=%s", ssid, password);
+    return ESP_OK;
+}
+
+esp_err_t wifi_manager_stop_ap(void)
+{
+    esp_wifi_stop();
+    ESP_LOGI(TAG, "SoftAP stopped");
+    return ESP_OK;
+}
+
 EventGroupHandle_t wifi_manager_get_event_group(void)
 {
     return s_wifi_event_group;

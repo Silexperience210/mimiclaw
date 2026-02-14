@@ -41,6 +41,21 @@ const char *wifi_manager_get_ip(void);
 esp_err_t wifi_manager_set_credentials(const char *ssid, const char *password);
 
 /**
+ * Check if WiFi credentials exist (NVS or build-time).
+ */
+bool wifi_manager_has_credentials(void);
+
+/**
+ * Start SoftAP mode for captive portal.
+ */
+esp_err_t wifi_manager_start_ap(const char *ssid, const char *password);
+
+/**
+ * Stop SoftAP mode.
+ */
+esp_err_t wifi_manager_stop_ap(void);
+
+/**
  * Get the event group for WiFi state (WIFI_CONNECTED_BIT / WIFI_FAIL_BIT).
  */
 EventGroupHandle_t wifi_manager_get_event_group(void);

@@ -21,6 +21,7 @@
 #include "cli/serial_cli.h"
 #include "proxy/http_proxy.h"
 #include "tools/tool_registry.h"
+#include "portal/captive_portal.h"
 
 static const char *TAG = "mimi";
 
@@ -114,30 +115,40 @@ void app_main(void)
     /* Start Serial CLI first (works without WiFi) */
     ESP_ERROR_CHECK(serial_cli_init());
 
-    /* Start WiFi */
-    esp_err_t wifi_err = wifi_manager_start();
-    if (wifi_err == ESP_OK) {
-        ESP_LOGI(TAG, "Waiting for WiFi connection...");
-        if (wifi_manager_wait_connected(30000) == ESP_OK) {
-            ESP_LOGI(TAG, "WiFi connected: %s", wifi_manager_get_ip());
-
-            /* Start network-dependent services */
-            ESP_ERROR_CHECK(telegram_bot_start());
-            ESP_ERROR_CHECK(agent_loop_start());
-            ESP_ERROR_CHECK(ws_server_start());
-
-            /* Outbound dispatch task */
-            xTaskCreatePinnedToCore(
-                outbound_dispatch_task, "outbound",
-                MIMI_OUTBOUND_STACK, NULL,
-                MIMI_OUTBOUND_PRIO, NULL, MIMI_OUTBOUND_CORE);
-
-            ESP_LOGI(TAG, "All services started!");
-        } else {
-            ESP_LOGW(TAG, "WiFi connection timeout. Check MIMI_SECRET_WIFI_SSID in mimi_secrets.h");
-        }
+    /* Verifier si des credentials WiFi existent */
+    if (!wifi_manager_has_credentials()) {
+        ESP_LOGW(TAG, "No WiFi credentials found. Starting captive portal...");
+        captive_portal_start();
+        ESP_LOGI(TAG, "Connect to WiFi '%s' (pass: %s) and open http://192.168.4.1",
+                 MIMI_PORTAL_AP_SSID, MIMI_PORTAL_AP_PASS);
     } else {
-        ESP_LOGW(TAG, "No WiFi credentials. Set MIMI_SECRET_WIFI_SSID in mimi_secrets.h");
+        /* Start WiFi en mode STA normal */
+        esp_err_t wifi_err = wifi_manager_start();
+        if (wifi_err == ESP_OK) {
+            ESP_LOGI(TAG, "Waiting for WiFi connection...");
+            if (wifi_manager_wait_connected(30000) == ESP_OK) {
+                ESP_LOGI(TAG, "WiFi connected: %s", wifi_manager_get_ip());
+
+                /* Start network-dependent services */
+                ESP_ERROR_CHECK(telegram_bot_start());
+                ESP_ERROR_CHECK(agent_loop_start());
+                ESP_ERROR_CHECK(ws_server_start());
+
+                /* Outbound dispatch task */
+                xTaskCreatePinnedToCore(
+                    outbound_dispatch_task, "outbound",
+                    MIMI_OUTBOUND_STACK, NULL,
+                    MIMI_OUTBOUND_PRIO, NULL, MIMI_OUTBOUND_CORE);
+
+                ESP_LOGI(TAG, "All services started!");
+            } else {
+                ESP_LOGW(TAG, "WiFi connection timeout. Starting captive portal...");
+                captive_portal_start();
+            }
+        } else {
+            ESP_LOGW(TAG, "WiFi start failed. Starting captive portal...");
+            captive_portal_start();
+        }
     }
 
     ESP_LOGI(TAG, "MimiClaw ready. Type 'help' for CLI commands.");

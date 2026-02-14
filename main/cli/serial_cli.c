@@ -7,6 +7,7 @@
 #include "memory/session_mgr.h"
 #include "proxy/http_proxy.h"
 #include "tools/tool_web_search.h"
+#include "portal/captive_portal.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -288,6 +289,30 @@ static int cmd_config_reset(int argc, char **argv)
     return 0;
 }
 
+/* --- portal_start command --- */
+static int cmd_portal_start(int argc, char **argv)
+{
+    if (captive_portal_is_active()) {
+        printf("Portal already active.\n");
+        return 0;
+    }
+    captive_portal_start();
+    printf("Captive portal started. Connect to WiFi '%s'\n", MIMI_PORTAL_AP_SSID);
+    return 0;
+}
+
+/* --- portal_stop command --- */
+static int cmd_portal_stop(int argc, char **argv)
+{
+    if (!captive_portal_is_active()) {
+        printf("Portal not active.\n");
+        return 0;
+    }
+    captive_portal_stop();
+    printf("Captive portal stopped.\n");
+    return 0;
+}
+
 /* --- restart command --- */
 static int cmd_restart(int argc, char **argv)
 {
@@ -457,6 +482,22 @@ esp_err_t serial_cli_init(void)
         .func = &cmd_config_reset,
     };
     esp_console_cmd_register(&config_reset_cmd);
+
+    /* portal_start */
+    esp_console_cmd_t portal_start_cmd = {
+        .command = "portal_start",
+        .help = "Start captive portal (AP + web config)",
+        .func = &cmd_portal_start,
+    };
+    esp_console_cmd_register(&portal_start_cmd);
+
+    /* portal_stop */
+    esp_console_cmd_t portal_stop_cmd = {
+        .command = "portal_stop",
+        .help = "Stop captive portal",
+        .func = &cmd_portal_stop,
+    };
+    esp_console_cmd_register(&portal_stop_cmd);
 
     /* restart */
     esp_console_cmd_t restart_cmd = {

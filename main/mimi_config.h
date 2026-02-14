@@ -88,6 +88,14 @@
 #define MIMI_CLI_PRIO                3
 #define MIMI_CLI_CORE                0
 
+/* Captive Portal (AP mode) */
+#define MIMI_PORTAL_AP_SSID      "MimiClaw-Setup"
+#define MIMI_PORTAL_AP_PASS      "mimiclaw1"
+#define MIMI_PORTAL_AP_MAX_CONN  2
+#define MIMI_PORTAL_AP_CHANNEL   1
+#define MIMI_PORTAL_HTTP_PORT    80
+#define MIMI_PORTAL_DNS_STACK    (4 * 1024)
+
 /* NVS Namespaces */
 #define MIMI_NVS_WIFI                "wifi_config"
 #define MIMI_NVS_TG                  "tg_config"
