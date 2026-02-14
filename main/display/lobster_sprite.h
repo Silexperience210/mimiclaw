@@ -120,10 +120,4 @@ static const uint16_t lobster_blink[LOBSTER_W * LOBSTER_H] = {
 /* Index des frames pour les animations */
 #define LOBSTER_FRAME_IDLE   0
 #define LOBSTER_FRAME_BLINK  1
-
-/* Table des frames */
-static const uint16_t *lobster_frames[] = {
-    lobster_idle,
-    lobster_blink,
-};
 #define LOBSTER_FRAME_COUNT  2

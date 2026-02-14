@@ -19,11 +19,6 @@ set(SRCS
     "portal/captive_portal.c"
 )
 
-set(REQUIRES
-    nvs_flash esp_wifi esp_netif esp_http_client esp_http_server
-    esp_https_ota esp_event json spiffs console vfs app_update esp-tls
-)
-
 # v1.2 : ecran T-Display S3 + boutons + deep sleep
 if(CONFIG_MIMI_HAS_DISPLAY)
     list(APPEND SRCS
@@ -32,13 +27,15 @@ if(CONFIG_MIMI_HAS_DISPLAY)
         "input/button_handler.c"
         "power/sleep_manager.c"
     )
-    list(APPEND REQUIRES esp_lcd driver)
 endif()
 
 idf_component_register(
     SRCS ${SRCS}
     INCLUDE_DIRS "."
-    REQUIRES ${REQUIRES}
+    REQUIRES
+        nvs_flash esp_wifi esp_netif esp_http_client esp_http_server
+        esp_https_ota esp_event json spiffs console vfs app_update esp-tls
+        esp_lcd driver
 )
 
 if(CONFIG_MIMI_HAS_DISPLAY)

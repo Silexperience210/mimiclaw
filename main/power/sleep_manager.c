@@ -7,7 +7,6 @@
 #include "freertos/timers.h"
 #include "esp_log.h"
 #include "esp_sleep.h"
-#include "driver/rtc_io.h"
 
 static const char *TAG = "sleep";
 
