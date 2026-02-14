@@ -96,6 +96,44 @@
 #define MIMI_PORTAL_HTTP_PORT    80
 #define MIMI_PORTAL_DNS_STACK    (4 * 1024)
 
+/* Display T-Display S3 (ST7789V, Intel 8080 parallel 8-bit) */
+#define MIMI_DISP_WIDTH          170
+#define MIMI_DISP_HEIGHT         320
+#define MIMI_DISP_PIN_CS         6
+#define MIMI_DISP_PIN_DC         7
+#define MIMI_DISP_PIN_RST        5
+#define MIMI_DISP_PIN_WR         8
+#define MIMI_DISP_PIN_RD         9
+#define MIMI_DISP_PIN_BL         38
+#define MIMI_DISP_PIN_POWER      15
+#define MIMI_DISP_PIN_D0         39
+#define MIMI_DISP_PIN_D1         40
+#define MIMI_DISP_PIN_D2         41
+#define MIMI_DISP_PIN_D3         42
+#define MIMI_DISP_PIN_D4         45
+#define MIMI_DISP_PIN_D5         46
+#define MIMI_DISP_PIN_D6         47
+#define MIMI_DISP_PIN_D7         48
+#define MIMI_DISP_STACK          (6 * 1024)
+#define MIMI_DISP_PRIO           4
+#define MIMI_DISP_CORE           0
+#define MIMI_DISP_FPS_ACTIVE     15
+#define MIMI_DISP_FPS_IDLE       2
+#define MIMI_DISP_BUF_LINES      40   /* lignes par bande de framebuffer */
+
+/* Boutons */
+#define MIMI_BTN_LEFT            0    /* GPIO0 - Boot */
+#define MIMI_BTN_RIGHT           14   /* GPIO14 - User */
+#define MIMI_BTN_LONG_MS         2000
+#define MIMI_BTN_DEBOUNCE_MS     50
+#define MIMI_BTN_STACK           (3 * 1024)
+#define MIMI_BTN_PRIO            5
+#define MIMI_BTN_CORE            0
+
+/* Deep Sleep */
+#define MIMI_SLEEP_TIMEOUT_MS    (5 * 60 * 1000)
+#define MIMI_SLEEP_WAKEUP_PIN    14
+
 /* NVS Namespaces */
 #define MIMI_NVS_WIFI                "wifi_config"
 #define MIMI_NVS_TG                  "tg_config"

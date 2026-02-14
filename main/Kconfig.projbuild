@@ -1,0 +1,11 @@
+menu "MimiClaw Configuration"
+
+    config MIMI_HAS_DISPLAY
+        bool "Enable T-Display S3 screen (v1.2)"
+        default n
+        help
+            Active le support de l'ecran ST7789V du LilyGo T-Display S3,
+            les boutons GPIO0/GPIO14, et le deep sleep automatique.
+            Desactive pour les boards sans ecran (v1).
+
+endmenu

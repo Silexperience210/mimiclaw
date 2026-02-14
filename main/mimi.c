@@ -22,6 +22,12 @@
 #include "proxy/http_proxy.h"
 #include "tools/tool_registry.h"
 #include "portal/captive_portal.h"
+#ifdef MIMI_HAS_DISPLAY
+#include "display/display_hal.h"
+#include "display/display_ui.h"
+#include "input/button_handler.h"
+#include "power/sleep_manager.h"
+#endif
 
 static const char *TAG = "mimi";
 
@@ -101,6 +107,12 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     ESP_ERROR_CHECK(init_spiffs());
 
+#ifdef MIMI_HAS_DISPLAY
+    /* Ecran : init tot pour afficher le splash */
+    ESP_ERROR_CHECK(display_hal_init());
+    ESP_ERROR_CHECK(display_ui_init());
+#endif
+
     /* Initialize subsystems */
     ESP_ERROR_CHECK(message_bus_init());
     ESP_ERROR_CHECK(memory_store_init());
@@ -115,10 +127,19 @@ void app_main(void)
     /* Start Serial CLI first (works without WiFi) */
     ESP_ERROR_CHECK(serial_cli_init());
 
+#ifdef MIMI_HAS_DISPLAY
+    /* Boutons + sleep manager */
+    ESP_ERROR_CHECK(button_handler_init());
+    ESP_ERROR_CHECK(sleep_manager_init());
+#endif
+
     /* Verifier si des credentials WiFi existent */
     if (!wifi_manager_has_credentials()) {
         ESP_LOGW(TAG, "No WiFi credentials found. Starting captive portal...");
         captive_portal_start();
+#ifdef MIMI_HAS_DISPLAY
+        display_ui_set_state(DISPLAY_PORTAL);
+#endif
         ESP_LOGI(TAG, "Connect to WiFi '%s' (pass: %s) and open http://192.168.4.1",
                  MIMI_PORTAL_AP_SSID, MIMI_PORTAL_AP_PASS);
     } else {
@@ -128,6 +149,9 @@ void app_main(void)
             ESP_LOGI(TAG, "Waiting for WiFi connection...");
             if (wifi_manager_wait_connected(30000) == ESP_OK) {
                 ESP_LOGI(TAG, "WiFi connected: %s", wifi_manager_get_ip());
+#ifdef MIMI_HAS_DISPLAY
+                display_ui_set_status(true, wifi_manager_get_ip());
+#endif
 
                 /* Start network-dependent services */
                 ESP_ERROR_CHECK(telegram_bot_start());
@@ -144,10 +168,16 @@ void app_main(void)
             } else {
                 ESP_LOGW(TAG, "WiFi connection timeout. Starting captive portal...");
                 captive_portal_start();
+#ifdef MIMI_HAS_DISPLAY
+                display_ui_set_state(DISPLAY_PORTAL);
+#endif
             }
         } else {
             ESP_LOGW(TAG, "WiFi start failed. Starting captive portal...");
             captive_portal_start();
+#ifdef MIMI_HAS_DISPLAY
+            display_ui_set_state(DISPLAY_PORTAL);
+#endif
         }
     }
 

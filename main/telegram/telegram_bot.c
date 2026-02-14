@@ -2,6 +2,9 @@
 #include "mimi_config.h"
 #include "bus/message_bus.h"
 #include "proxy/http_proxy.h"
+#ifdef MIMI_HAS_DISPLAY
+#include "power/sleep_manager.h"
+#endif
 
 #include <string.h>
 #include <stdlib.h>
@@ -220,6 +223,9 @@ static void process_updates(const char *json_str)
         msg.content = strdup(text->valuestring);
         if (msg.content) {
             message_bus_push_inbound(&msg);
+#ifdef MIMI_HAS_DISPLAY
+            sleep_manager_reset_timer();
+#endif
         }
     }
 

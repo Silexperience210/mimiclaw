@@ -21,45 +21,73 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build firmware
+      - name: Build v1 (sans ecran)
         shell: bash
         run: |
           . $IDF_PATH/export.sh
           idf.py set-target esp32s3
           idf.py build
+          mkdir -p docs/firmware/v1
+          cp build/bootloader/bootloader.bin           docs/firmware/v1/
+          cp build/partition_table/partition-table.bin  docs/firmware/v1/
+          cp build/ota_data_initial.bin                 docs/firmware/v1/
+          cp build/mimiclaw.bin                         docs/firmware/v1/
 
-      - name: Copy binaries to docs/firmware
+      - name: Build v1.2 (avec ecran T-Display S3)
         shell: bash
         run: |
-          mkdir -p docs/firmware
-          cp build/bootloader/bootloader.bin           docs/firmware/
-          cp build/partition_table/partition-table.bin  docs/firmware/
-          cp build/ota_data_initial.bin                 docs/firmware/
-          cp build/mimiclaw.bin                         docs/firmware/
+          . $IDF_PATH/export.sh
+          idf.py fullclean
+          echo "CONFIG_MIMI_HAS_DISPLAY=y" >> sdkconfig.defaults
+          idf.py set-target esp32s3
+          idf.py build
+          mkdir -p docs/firmware/v1.2
+          cp build/bootloader/bootloader.bin           docs/firmware/v1.2/
+          cp build/partition_table/partition-table.bin  docs/firmware/v1.2/
+          cp build/ota_data_initial.bin                 docs/firmware/v1.2/
+          cp build/mimiclaw.bin                         docs/firmware/v1.2/
+          git checkout -- sdkconfig.defaults
 
-      - name: Update manifest version
+      - name: Generate manifests
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME:-dev}"
-          cat > docs/manifest.json << 'ENDMANIFEST'
+          cat > docs/manifest-v1.json << EOF
           {
-            "name": "LilyClaw (MimiClaw for T-Display S3)",
-            "version": "VERSION_PLACEHOLDER",
+            "name": "LilyClaw v1 (sans ecran)",
+            "version": "${VERSION}",
             "new_install_prompt_erase": true,
             "builds": [
               {
                 "chipFamily": "ESP32-S3",
                 "parts": [
-                  { "path": "firmware/bootloader.bin", "offset": 0 },
-                  { "path": "firmware/partition-table.bin", "offset": 32768 },
-                  { "path": "firmware/ota_data_initial.bin", "offset": 61440 },
-                  { "path": "firmware/mimiclaw.bin", "offset": 131072 }
+                  { "path": "firmware/v1/bootloader.bin", "offset": 0 },
+                  { "path": "firmware/v1/partition-table.bin", "offset": 32768 },
+                  { "path": "firmware/v1/ota_data_initial.bin", "offset": 61440 },
+                  { "path": "firmware/v1/mimiclaw.bin", "offset": 131072 }
                 ]
               }
             ]
           }
-          ENDMANIFEST
-          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/" docs/manifest.json
+          EOF
+          cat > docs/manifest-v1.2.json << EOF
+          {
+            "name": "LilyClaw v1.2 (T-Display S3 + ecran)",
+            "version": "${VERSION}",
+            "new_install_prompt_erase": true,
+            "builds": [
+              {
+                "chipFamily": "ESP32-S3",
+                "parts": [
+                  { "path": "firmware/v1.2/bootloader.bin", "offset": 0 },
+                  { "path": "firmware/v1.2/partition-table.bin", "offset": 32768 },
+                  { "path": "firmware/v1.2/ota_data_initial.bin", "offset": 61440 },
+                  { "path": "firmware/v1.2/mimiclaw.bin", "offset": 131072 }
+                ]
+              }
+            ]
+          }
+          EOF
 
       - name: Commit and push firmware binaries
         shell: bash
@@ -67,7 +95,7 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/firmware/ docs/manifest.json
+          git add docs/firmware/ docs/manifest-v1.json docs/manifest-v1.2.json
           git diff --cached --quiet && echo "No changes to commit" && exit 0
-          git commit -m "chore: update web flasher firmware binaries (${GITHUB_REF_NAME:-manual})"
+          git commit -m "chore: update firmware v1 + v1.2 (${GITHUB_REF_NAME:-manual})"
           git push origin HEAD:main

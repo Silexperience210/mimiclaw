@@ -5,6 +5,10 @@
 #include "llm/llm_proxy.h"
 #include "memory/session_mgr.h"
 #include "tools/tool_registry.h"
+#ifdef MIMI_HAS_DISPLAY
+#include "display/display_ui.h"
+#include "power/sleep_manager.h"
+#endif
 
 #include <string.h>
 #include <stdlib.h>
@@ -100,6 +104,10 @@ static void agent_loop_task(void *arg)
         if (err != ESP_OK) continue;
 
         ESP_LOGI(TAG, "Processing message from %s:%s", msg.channel, msg.chat_id);
+#ifdef MIMI_HAS_DISPLAY
+        display_ui_set_state(DISPLAY_THINKING);
+        sleep_manager_reset_timer();
+#endif
 
         /* 1. Build system prompt */
         context_build_system_prompt(system_prompt, MIMI_CONTEXT_BUF_SIZE);
@@ -183,6 +191,12 @@ static void agent_loop_task(void *arg)
             session_append(msg.chat_id, "user", msg.content);
             session_append(msg.chat_id, "assistant", final_text);
 
+#ifdef MIMI_HAS_DISPLAY
+            /* Afficher la reponse sur l'ecran */
+            display_ui_set_message(final_text);
+            display_ui_set_state(DISPLAY_IDLE);
+#endif
+
             /* Push response to outbound */
             mimi_msg_t out = {0};
             strncpy(out.channel, msg.channel, sizeof(out.channel) - 1);
@@ -199,6 +213,9 @@ static void agent_loop_task(void *arg)
             if (out.content) {
                 message_bus_push_outbound(&out);
             }
+#ifdef MIMI_HAS_DISPLAY
+            display_ui_set_state(DISPLAY_IDLE);
+#endif
         }
 
         /* Free inbound message content */
