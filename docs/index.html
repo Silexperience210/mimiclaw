@@ -63,15 +63,43 @@
     .logo-glow {
       position: relative;
       display: inline-block;
-      font-size: 72px;
       margin-bottom: 20px;
-      filter: drop-shadow(0 0 40px rgba(168,85,247,0.5)) drop-shadow(0 0 80px rgba(6,182,212,0.3));
+      filter: drop-shadow(0 0 40px rgba(255,69,0,0.5)) drop-shadow(0 0 80px rgba(255,140,50,0.3));
       animation: pulse-glow 4s ease-in-out infinite;
     }
 
+    .ascii-lobster {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      line-height: 1.2;
+      white-space: pre;
+      color: #e85d3a;
+      text-shadow: 0 0 20px rgba(232,93,58,0.5), 0 0 40px rgba(255,140,50,0.3);
+      display: inline-block;
+      margin: 0;
+    }
+    .ascii-lobster .claw-l, .ascii-lobster .claw-r {
+      color: #ff6b35;
+      text-shadow: 0 0 15px rgba(255,107,53,0.7);
+    }
+    .ascii-lobster .head {
+      color: #ff4500;
+      text-shadow: 0 0 20px rgba(255,69,0,0.6);
+    }
+    .ascii-lobster .body {
+      color: #e85d3a;
+    }
+    .ascii-lobster .tail {
+      color: #d4412a;
+    }
+    .ascii-lobster .legs {
+      color: #ff8c32;
+      text-shadow: 0 0 12px rgba(255,140,50,0.5);
+    }
+
     @keyframes pulse-glow {
-      0%,100% { filter: drop-shadow(0 0 40px rgba(168,85,247,0.5)) drop-shadow(0 0 80px rgba(6,182,212,0.3)); }
-      50% { filter: drop-shadow(0 0 60px rgba(168,85,247,0.7)) drop-shadow(0 0 100px rgba(6,182,212,0.5)); }
+      0%,100% { filter: drop-shadow(0 0 40px rgba(255,69,0,0.5)) drop-shadow(0 0 80px rgba(255,140,50,0.3)); }
+      50% { filter: drop-shadow(0 0 60px rgba(255,69,0,0.7)) drop-shadow(0 0 100px rgba(255,140,50,0.5)); }
     }
 
     .title {
@@ -332,7 +360,7 @@
       .card { padding: 24px 18px; }
       .card-hero { padding: 36px 18px; }
       .title { font-size: 32px; }
-      .logo-glow { font-size: 56px; }
+      .ascii-lobster { font-size: 7px; }
       esp-web-install-button button { padding: 16px 40px; font-size: 15px; }
     }
   </style>
@@ -346,7 +374,23 @@
 <div class="container">
 
   <div class="header">
-    <div class="logo-glow">&#128049;</div>
+    <div class="logo-glow"><pre class="ascii-lobster">
+  <span class="claw-l">\\\\</span>         <span class="claw-r">////</span>
+   <span class="claw-l">\\\\</span>       <span class="claw-r">////</span>
+    <span class="claw-l">&gt;&gt;)</span>     <span class="claw-r">(&lt;&lt;</span>
+     <span class="claw-l">))</span>  <span class="head">___</span>  <span class="claw-r">((</span>
+      <span class="claw-l">)</span> <span class="head">/o.o\</span> <span class="claw-r">(</span>
+        <span class="head">| _ |</span>
+        <span class="body">/| | |\</span>
+       <span class="body">/_|_|_|_\</span>
+       <span class="body">| | | | |</span>
+       <span class="body">| | | | |</span>
+      <span class="tail">/  | | |  \</span>
+     <span class="tail">/__ | | | __\</span>
+        <span class="tail">|_| |_|</span>
+       <span class="legs">// | | \\</span>
+      <span class="legs">//  | |  \\</span>
+     <span class="legs">&lt;/  &lt;_&gt;  \&gt;</span></pre></div>
     <div class="title"><span class="title-grad">LilyClaw</span></div>
     <div class="subtitle">Web Flasher</div>
   </div>
