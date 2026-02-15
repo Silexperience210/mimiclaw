@@ -192,8 +192,10 @@ static void agent_loop_task(void *arg)
             session_append(msg.chat_id, "assistant", final_text);
 
 #ifdef MIMI_HAS_DISPLAY
-            /* Afficher la reponse sur l'ecran */
+            /* Afficher la reponse + notification banner + mood fier */
             display_ui_set_message(final_text);
+            display_ui_notify_message();
+            display_ui_set_mood(MOOD_PROUD);
             display_ui_set_state(DISPLAY_IDLE);
 #endif
 

@@ -114,12 +114,18 @@
 #define MIMI_DISP_PIN_D5         46
 #define MIMI_DISP_PIN_D6         47
 #define MIMI_DISP_PIN_D7         48
-#define MIMI_DISP_STACK          (6 * 1024)
+#define MIMI_DISP_STACK          (8 * 1024)
 #define MIMI_DISP_PRIO           4
 #define MIMI_DISP_CORE           0
 #define MIMI_DISP_FPS_ACTIVE     15
-#define MIMI_DISP_FPS_IDLE       2
+#define MIMI_DISP_FPS_IDLE       3
+#define MIMI_DISP_FPS_SCREENSAVER 5
 #define MIMI_DISP_BUF_LINES      40   /* lignes par bande de framebuffer */
+#define MIMI_DISP_SCREENSAVER_MS (60 * 1000)  /* 1 min avant screensaver */
+#define MIMI_DISP_BANNER_MS      3000         /* duree notification banner */
+#define MIMI_DISP_BANNER_H       40           /* hauteur banner en pixels */
+#define MIMI_DISP_TRANSITION_FRAMES 6         /* frames pour transition */
+#define MIMI_DISP_BUBBLE_COUNT   8            /* bulles aquarium */
 
 /* Boutons */
 #define MIMI_BTN_LEFT            0    /* GPIO0 - Boot */

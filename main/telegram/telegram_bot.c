@@ -4,6 +4,7 @@
 #include "proxy/http_proxy.h"
 #ifdef MIMI_HAS_DISPLAY
 #include "power/sleep_manager.h"
+#include "display/display_ui.h"
 #endif
 
 #include <string.h>
@@ -225,6 +226,8 @@ static void process_updates(const char *json_str)
             message_bus_push_inbound(&msg);
 #ifdef MIMI_HAS_DISPLAY
             sleep_manager_reset_timer();
+            display_ui_set_message(text->valuestring);
+            display_ui_notify_message();
 #endif
         }
     }
