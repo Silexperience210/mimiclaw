@@ -51,42 +51,28 @@ jobs:
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME:-dev}"
-          cat > docs/manifest-v1.json << EOF
-          {
-            "name": "LilyClaw v1 (sans ecran)",
-            "version": "${VERSION}",
-            "new_install_prompt_erase": true,
-            "builds": [
-              {
-                "chipFamily": "ESP32-S3",
-                "parts": [
-                  { "path": "firmware/v1/bootloader.bin", "offset": 0 },
-                  { "path": "firmware/v1/partition-table.bin", "offset": 32768 },
-                  { "path": "firmware/v1/ota_data_initial.bin", "offset": 61440 },
-                  { "path": "firmware/v1/mimiclaw.bin", "offset": 131072 }
-                ]
+          python3 -c "
+          import json
+          for v in ['v1', 'v1.2']:
+              name = 'LilyClaw v1 (sans ecran)' if v == 'v1' else 'LilyClaw v1.2 (T-Display S3 + ecran)'
+              m = {
+                  'name': name,
+                  'version': '$VERSION',
+                  'new_install_prompt_erase': True,
+                  'builds': [{
+                      'chipFamily': 'ESP32-S3',
+                      'parts': [
+                          {'path': f'firmware/{v}/bootloader.bin', 'offset': 0},
+                          {'path': f'firmware/{v}/partition-table.bin', 'offset': 32768},
+                          {'path': f'firmware/{v}/ota_data_initial.bin', 'offset': 61440},
+                          {'path': f'firmware/{v}/mimiclaw.bin', 'offset': 131072}
+                      ]
+                  }]
               }
-            ]
-          }
-          EOF
-          cat > docs/manifest-v1.2.json << EOF
-          {
-            "name": "LilyClaw v1.2 (T-Display S3 + ecran)",
-            "version": "${VERSION}",
-            "new_install_prompt_erase": true,
-            "builds": [
-              {
-                "chipFamily": "ESP32-S3",
-                "parts": [
-                  { "path": "firmware/v1.2/bootloader.bin", "offset": 0 },
-                  { "path": "firmware/v1.2/partition-table.bin", "offset": 32768 },
-                  { "path": "firmware/v1.2/ota_data_initial.bin", "offset": 61440 },
-                  { "path": "firmware/v1.2/mimiclaw.bin", "offset": 131072 }
-                ]
-              }
-            ]
-          }
-          EOF
+              with open(f'docs/manifest-{v}.json', 'w') as f:
+                  json.dump(m, f, indent=2)
+                  f.write('\n')
+          "
 
       - name: Commit and push firmware binaries
         shell: bash
@@ -94,7 +80,7 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/firmware/ docs/manifest-v1.json docs/manifest-v1.2.json
+          git add -f docs/firmware/ docs/manifest-v1.json docs/manifest-v1.2.json
           git diff --cached --quiet && echo "No changes to commit" && exit 0
           git commit -m "chore: update firmware v1 + v1.2 (${GITHUB_REF_NAME:-manual})"
           git push origin HEAD:main

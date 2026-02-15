@@ -33,6 +33,7 @@ main/mimi_secrets.h
 .cache
 *.pyc
 *.bin
+!docs/firmware/**/*.bin
 
 # Reference repos
 nanobot/
