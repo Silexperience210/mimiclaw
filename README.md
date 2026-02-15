@@ -1,4 +1,4 @@
-# MimiClaw: Pocket AI Assistant on a $5 Chip
+# LilyClaw: Pocket AI Assistant on a $15 Chip
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![DeepWiki](https://img.shields.io/badge/DeepWiki-mimiclaw-blue.svg)](https://deepwiki.com/memovai/mimiclaw)
@@ -12,11 +12,11 @@
   <img src="assets/banner.png" alt="MimiClaw" width="480" />
 </p>
 
-**The world's first AI assistant(OpenClaw) on a $5 chip. No Linux. No Node.js. Just pure C**
+**The world's first AI assistant(OpenClaw) on a $15 chip. No Linux. No Node.js. Just pure C**
 
-MimiClaw turns a tiny ESP32-S3 board into a personal AI assistant. Plug it into USB power, connect to WiFi, and talk to it through Telegram — it handles any task you throw at it and evolves over time with local memory — all on a chip the size of a thumb.
+LilyClaw turns a tiny ESP32-S3 Lilygo Tdisplay S3 board into a personal AI assistant. Plug it into USB power, connect to WiFi, and talk to it through Telegram — it handles any task you throw at it and evolves over time with local memory — all on a chip the size of a thumb.
 
-## Meet MimiClaw
+## Meet LilyClaw
 
 - **Tiny** — No Linux, no Node.js, no bloat — just pure C
 - **Handy** — Message it from Telegram, it handles the rest
@@ -59,7 +59,7 @@ idf.py set-target esp32s3
 
 ### Configure
 
-MimiClaw uses a **two-layer config** system: build-time defaults in `mimi_secrets.h`, with runtime overrides via the serial CLI. CLI values are stored in NVS flash and take priority over build-time values.
+LilyClaw uses a **two-layer config** system: build-time defaults in `mimi_secrets.h`, with runtime overrides via the serial CLI. CLI values are stored in NVS flash and take priority over build-time values.
 
 ```bash
 cp main/mimi_secrets.h.example main/mimi_secrets.h
@@ -124,7 +124,7 @@ mimi> restart                  # reboot
 
 ## Memory
 
-MimiClaw stores everything as plain text files you can read and edit:
+LilyClaw stores everything as plain text files you can read and edit:
 
 | File | What it is |
 |------|------------|
@@ -136,7 +136,7 @@ MimiClaw stores everything as plain text files you can read and edit:
 
 ## Tools
 
-MimiClaw uses Anthropic's tool use protocol — Claude can call tools during a conversation and loop until the task is done (ReAct pattern).
+LilyClaw uses Anthropic's tool use protocol — Claude can call tools during a conversation and loop until the task is done (ReAct pattern).
 
 | Tool | Description |
 |------|-------------|
