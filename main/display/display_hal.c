@@ -78,10 +78,13 @@ esp_err_t display_hal_init(void)
     ESP_ERROR_CHECK(esp_lcd_panel_reset(s_panel));
     ESP_ERROR_CHECK(esp_lcd_panel_init(s_panel));
 
-    /* T-Display S3 : paysage 320x170, inversion couleurs */
+    /* T-Display S3 : paysage 320x170, inversion couleurs
+     * Le ST7789V a 240 colonnes RAM mais le panneau n'en utilise que 170.
+     * Offset = 35 colonnes. En paysage (swap_xy), ca devient y_gap=35. */
     ESP_ERROR_CHECK(esp_lcd_panel_invert_color(s_panel, true));
     ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(s_panel, true));
     ESP_ERROR_CHECK(esp_lcd_panel_mirror(s_panel, false, true));
+    ESP_ERROR_CHECK(esp_lcd_panel_set_gap(s_panel, 0, 35));
 
     /* Allumer l'ecran */
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(s_panel, true));

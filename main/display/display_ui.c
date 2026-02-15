@@ -464,8 +464,8 @@ static void bubbles_draw(void)
 /* Algues au fond de l'ecran */
 static void draw_seaweed(void)
 {
-    /* 5 algues reparties sur la largeur */
-    int positions[] = {15, 45, 80, 115, 145};
+    /* 5 algues reparties sur la largeur (320px paysage) */
+    int positions[] = {20, 80, 150, 220, 280};
     for (int a = 0; a < 5; a++) {
         int base_x = positions[a];
         int height = 20 + (a % 3) * 8;
@@ -506,10 +506,10 @@ static void draw_idle(void)
     fb_clear(COL_BG);
     draw_status_bar();
 
-    /* Paysage : lobster a gauche, texte a droite */
-    int sprite_scale = 2;
-    int sx = 20;
-    int sy = (MIMI_DISP_HEIGHT - LOBSTER_H * sprite_scale) / 2;
+    /* Paysage : lobster a gauche (scale 3 = 96x96), texte a droite */
+    int sprite_scale = 3;
+    int sx = 10;
+    int sy = (MIMI_DISP_HEIGHT - LOBSTER_H * sprite_scale) / 2 + 6;
 
     bool use_blink = false;
     if (s_mood == MOOD_SLEEPY) {
@@ -523,8 +523,8 @@ static void draw_idle(void)
     draw_mood_eyes(sx, sy, sprite_scale);
 
     /* Titre a droite du lobster */
-    int tx = sx + LOBSTER_W * sprite_scale + 20;
-    fb_draw_string(tx, 30, "LilyClaw", COL_ACCENT, 2);
+    int tx = sx + LOBSTER_W * sprite_scale + 15;
+    fb_draw_string(tx, 25, "LilyClaw", COL_ACCENT, 2);
 
     /* Sous-titre selon humeur */
     const char *sub = "AI Assistant";
@@ -535,11 +535,11 @@ static void draw_idle(void)
     case MOOD_PROUD:   sub = "Nailed it!"; break;
     default: break;
     }
-    fb_draw_string(tx, 55, sub, COL_DIM, 1);
+    fb_draw_string(tx, 52, sub, COL_DIM, 1);
 
-    /* Ligne decorative sous le titre */
-    fb_fill_rect(tx, 68, 100, 1, COL_ACCENT);
-    fb_draw_string(tx, 75, "ESP32-S3 AI", COL_DIM, 1);
+    /* Ligne decorative */
+    fb_fill_rect(tx, 65, 120, 1, COL_ACCENT);
+    fb_draw_string(tx, 72, "ESP32-S3 AI", COL_DIM, 1);
 }
 
 static void draw_thinking(void)
@@ -547,10 +547,10 @@ static void draw_thinking(void)
     fb_clear(COL_BG);
     draw_status_bar();
 
-    /* Paysage : lobster a gauche, thinking a droite */
-    int sprite_scale = 2;
-    int sx = 20;
-    int sy = (MIMI_DISP_HEIGHT - LOBSTER_H * sprite_scale) / 2;
+    /* Paysage : lobster a gauche (scale 3 = 96x96), thinking a droite */
+    int sprite_scale = 3;
+    int sx = 10;
+    int sy = (MIMI_DISP_HEIGHT - LOBSTER_H * sprite_scale) / 2 + 6;
 
     int anim = (s_frame_count / 4) % 2;
     const uint16_t *frame = anim ? lobster_blink : lobster_idle;
@@ -560,15 +560,15 @@ static void draw_thinking(void)
     draw_mood_eyes(sx, sy, sprite_scale);
 
     /* Texte a droite */
-    int tx = sx + LOBSTER_W * sprite_scale + 20;
+    int tx = sx + LOBSTER_W * sprite_scale + 15;
     int dots = (s_frame_count / 5) % 4;
     char think_text[16] = "Thinking";
     for (int i = 0; i < dots; i++) strcat(think_text, ".");
-    fb_draw_string(tx, 40, think_text, COL_THINK, 2);
+    fb_draw_string(tx, 35, think_text, COL_THINK, 2);
 
     /* Barre de progression */
-    int bar_y = 75;
-    int bar_w = 180;
+    int bar_y = 68;
+    int bar_w = MIMI_DISP_WIDTH - tx - 10;
     fb_fill_rect(tx, bar_y, bar_w, 4, 0x2104);
     int progress = (s_frame_count * 3) % bar_w;
     int seg_w = 40;
@@ -602,16 +602,19 @@ static void draw_portal(void)
 {
     fb_clear(COL_BG);
 
-    /* Paysage : lobster a gauche, infos a droite */
-    fb_draw_sprite(15, 25, lobster_idle, LOBSTER_W, LOBSTER_H, 2);
+    /* Paysage : lobster a gauche (scale 3), infos a droite */
+    int sprite_scale = 3;
+    int sx = 10;
+    int sy = (MIMI_DISP_HEIGHT - LOBSTER_H * sprite_scale) / 2 + 6;
+    fb_draw_sprite(sx, sy, lobster_idle, LOBSTER_W, LOBSTER_H, sprite_scale);
 
-    int tx = 90;
+    int tx = sx + LOBSTER_W * sprite_scale + 15;
     fb_draw_string(tx, 10, "Setup Mode", COL_ACCENT, 2);
     fb_draw_string(tx, 35, "WiFi:", COL_DIM, 1);
     fb_draw_string(tx + 36, 35, MIMI_PORTAL_AP_SSID, COL_TEXT, 1);
     fb_draw_string(tx, 50, "Pass:", COL_DIM, 1);
     fb_draw_string(tx + 36, 50, MIMI_PORTAL_AP_PASS, COL_TEXT, 1);
-    fb_fill_rect(tx, 63, 200, 1, COL_DIM);
+    fb_fill_rect(tx, 63, MIMI_DISP_WIDTH - tx - 5, 1, COL_DIM);
     fb_draw_string(tx, 70, "Open:", COL_DIM, 1);
     fb_draw_string(tx, 85, "192.168.4.1", COL_ACCENT, 2);
 }
@@ -713,11 +716,11 @@ static void draw_boot_animation(void)
         return;
     }
 
-    /* Paysage : lobster a gauche, texte a droite */
-    int sprite_scale = 2;
-    int target_x = 30;
-    int target_y = (MIMI_DISP_HEIGHT - LOBSTER_H * sprite_scale) / 2;
-    int tx = target_x + LOBSTER_W * sprite_scale + 25;
+    /* Paysage : lobster a gauche (scale 3), texte a droite */
+    int sprite_scale = 3;
+    int target_x = 10;
+    int target_y = (MIMI_DISP_HEIGHT - LOBSTER_H * sprite_scale) / 2 + 6;
+    int tx = target_x + LOBSTER_W * sprite_scale + 15;
 
     /* Phase 1 : lobster glisse depuis la gauche (12 frames) */
     for (int f = 0; f < 12; f++) {
