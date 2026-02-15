@@ -27,6 +27,11 @@
 #include "display/display_ui.h"
 #include "input/button_handler.h"
 #include "power/sleep_manager.h"
+#ifdef MIMI_HAS_SERVOS
+#include "hardware/servo_driver.h"
+#include "hardware/ultrasonic.h"
+#include "hardware/body_animator.h"
+#endif
 #endif
 
 static const char *TAG = "mimi";
@@ -111,6 +116,13 @@ void app_main(void)
     /* Ecran : init tot pour afficher le splash */
     ESP_ERROR_CHECK(display_hal_init());
     ESP_ERROR_CHECK(display_ui_init());
+
+#ifdef MIMI_HAS_SERVOS
+    /* v1.3 : servos + capteur ultrason + animations corporelles */
+    ESP_ERROR_CHECK(servo_driver_init());
+    ESP_ERROR_CHECK(ultrasonic_init());
+    ESP_ERROR_CHECK(body_animator_init());
+#endif
 #endif
 
     /* Initialize subsystems */

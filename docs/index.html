@@ -460,7 +460,11 @@
       </button>
       <button class="version-btn" id="btnV12" onclick="selectVersion('v1.2')">
         <span class="ver-name">v1.2</span>
-        <span class="ver-desc">T-Display S3 (ecran + boutons)</span>
+        <span class="ver-desc">T-Display S3 (ecran)</span>
+      </button>
+      <button class="version-btn" id="btnV13" onclick="selectVersion('v1.3')">
+        <span class="ver-name">v1.3</span>
+        <span class="ver-desc">Ecran + servos + capteur</span>
       </button>
     </div>
 
@@ -500,8 +504,8 @@
       <div class="step">
         <div class="step-num">3</div>
         <div class="step-content">
-          <h3>Connect to WiFi <code>MimiClaw-Setup</code></h3>
-          <p>Device starts an access point. Password: <code>mimiclaw1</code></p>
+          <h3>Connect to WiFi <code>LilyClaw-Setup</code></h3>
+          <p>Device starts an access point. Password: <code>lilyclaw1</code></p>
         </div>
       </div>
       <div class="step">
@@ -516,6 +520,36 @@
     <div class="warn">
       <div>&#9888;&#65039;</div>
       <p>First install erases all data. Updates preserve your config.</p>
+    </div>
+  </div>
+
+  <!-- v1.3 Wiring -->
+  <div class="card" id="wiring13" style="display:none">
+    <h2>// v1.3 wiring guide</h2>
+    <p style="margin-bottom:16px">Connect the HC-SR04 sensor and 4 SG90 servos to your T-Display S3:</p>
+    <pre style="font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.4;color:var(--text-dim);background:rgba(0,0,0,0.3);padding:16px;border-radius:10px;overflow-x:auto;margin-bottom:16px">
+  HC-SR04          T-Display S3          Servos (SG90)
+ ┌────────┐       ┌────────────┐
+ │VCC ── 5V──────┤ 5V      G18├────── Tete H (↔)
+ │TRIG─ G16──────┤            │
+ │ECHO─ G17──┐   │         G10├────── Tete V (↕)
+ │GND ── GND─┤   │            │
+ └────────┘  │   │         G11├────── Pince Gauche
+   ⚠ Diviseur│   │            │
+   1kΩ+2kΩ  │   │         G12├────── Pince Droite
+   sur ECHO  │   │            │
+             └───┤ GND     5V ├────── Servos VCC (rouge)
+                 └────────────┘       Servos GND (marron)
+    </pre>
+    <div class="steps" style="gap:8px">
+      <div class="step">
+        <div class="step-num">!</div>
+        <div><h3>5V Power</h3><p>SG90 servos + HC-SR04 = 5V. Add a <code>470µF</code> capacitor on the 5V rail to prevent brownouts.</p></div>
+      </div>
+      <div class="step">
+        <div class="step-num">!</div>
+        <div><h3>ECHO 5V → 3.3V</h3><p>HC-SR04 ECHO outputs 5V. Use a voltage divider (1kΩ + 2kΩ) or a 3.3V module (RCWL-1601).</p></div>
+      </div>
     </div>
   </div>
 
@@ -694,6 +728,8 @@ function selectVersion(ver) {
   btn.setAttribute('manifest', 'manifest-' + ver + '.json');
   document.getElementById('btnV1').classList.toggle('active', ver === 'v1');
   document.getElementById('btnV12').classList.toggle('active', ver === 'v1.2');
+  document.getElementById('btnV13').classList.toggle('active', ver === 'v1.3');
+  document.getElementById('wiring13').style.display = ver === 'v1.3' ? 'block' : 'none';
 }
 
 // WebSerial detection

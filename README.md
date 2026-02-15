@@ -43,7 +43,7 @@ You send a message on Telegram. The ESP32-S3 picks it up over WiFi, feeds it int
 
 > **[⚡ Flash LilyClaw from your browser](https://silexperience210.github.io/lilyclaw/)** — plug USB, click flash, done.
 
-Works with Chrome/Edge. Flashes the latest firmware to your ESP32-S3 in 30 seconds. After flashing, connect to the `MimiClaw-Setup` WiFi and configure everything from your phone at `192.168.4.1`.
+Works with Chrome/Edge. Flashes the latest firmware to your ESP32-S3 in 30 seconds. After flashing, connect to the `LilyClaw-Setup` WiFi and configure everything from your phone at `192.168.4.1`.
 
 ### Install (advanced — build from source)
 
@@ -134,6 +134,68 @@ LilyClaw stores everything as plain text files you can read and edit:
 | `2026-02-05.md` | Daily notes — what happened today |
 | `tg_12345.jsonl` | Chat history — your conversation with the bot |
 
+## Hardware Variants
+
+| Version | Board | Features |
+|---------|-------|----------|
+| **v1.0** | Any ESP32-S3 (16MB flash, 8MB PSRAM) | Telegram + AI + tools |
+| **v1.2** | LilyGo T-Display S3 | + Ecran + boutons + deep sleep |
+| **v1.3** | T-Display S3 + HC-SR04 + 4 servos | + Corps physique animé |
+
+### v1.3 Wiring — HC-SR04 + Servos
+
+Build from source with v1.3 features:
+
+```bash
+idf.py menuconfig  # → MimiClaw Configuration → Enable both options
+idf.py build && idf.py -p PORT flash
+```
+
+Or use the [Web Flasher](https://silexperience210.github.io/lilyclaw/) and select **v1.3**.
+
+#### Wiring Diagram
+
+```
+                    T-Display S3
+                   ┌────────────┐
+                   │  USB-C     │
+                   │            │
+          GPIO 16 ─┤            ├─ GPIO 18  ──→ Servo Tete H
+          GPIO 17 ─┤            ├─ GPIO 10  ──→ Servo Tete V
+                   │            ├─ GPIO 11  ──→ Servo Pince G
+                   │            ├─ GPIO 12  ──→ Servo Pince D
+                   │     GND ───┤            ├─── GND
+                   │     5V  ───┤            ├─── 5V
+                   └────────────┘
+
+      HC-SR04                          SG90 Servos (x4)
+    ┌──────────┐                      ┌──────────┐
+    │ VCC ─── 5V                      │ Rouge ─ 5V
+    │ TRIG ── GPIO 16                 │ Marron ─ GND
+    │ ECHO ── GPIO 17                 │ Orange ─ GPIO signal
+    │ GND ─── GND                     └──────────┘
+    └──────────┘
+```
+
+#### Pin Assignment
+
+| Component | Pin | GPIO |
+|-----------|-----|------|
+| HC-SR04 TRIG | Trigger | **GPIO 16** |
+| HC-SR04 ECHO | Echo | **GPIO 17** |
+| Servo tete horizontal | Gauche/Droite | **GPIO 18** |
+| Servo tete vertical | Haut/Bas | **GPIO 10** |
+| Servo pince gauche | Ouvrir/Fermer | **GPIO 11** |
+| Servo pince droite | Ouvrir/Fermer | **GPIO 12** |
+
+#### Notes
+
+- **Alimentation** : Les servos SG90 et le HC-SR04 fonctionnent en 5V. Utilisez le pin 5V de l'ESP32-S3 (alimenté par USB). Si les 4 servos bougent simultanément, un condensateur 470µF sur le rail 5V évite les brownouts.
+- **HC-SR04 ECHO** : Le signal ECHO est en 5V. L'ESP32-S3 tolère 3.3V max sur ses GPIO. Ajoutez un **diviseur de tension** (2 résistances : 1kΩ + 2kΩ) sur ECHO, ou utilisez un module HC-SR04 **3.3V** (RCWL-1601).
+- **Servos** : Modèles SG90 ou MG90S recommandés. Le signal PWM est 3.3V, compatible directement.
+- Au boot, la tête se centre (90°) et les pinces se ferment (0°).
+- L'IA peut contrôler les servos via Telegram avec les tools `move_head`, `move_claw`, `animate`, `read_distance`.
+
 ## Tools
 
 LilyClaw uses Anthropic's tool use protocol — Claude can call tools during a conversation and loop until the task is done (ReAct pattern).
@@ -142,6 +204,10 @@ LilyClaw uses Anthropic's tool use protocol — Claude can call tools during a c
 |------|-------------|
 | `web_search` | Search the web via Brave Search API for current information |
 | `get_current_time` | Fetch current date/time via HTTP and set the system clock |
+| `move_head` | Move the robot head (horizontal/vertical 0-180°) *(v1.3)* |
+| `move_claw` | Open/close claws (left/right/both, 0-180°) *(v1.3)* |
+| `read_distance` | Read ultrasonic distance sensor (cm) *(v1.3)* |
+| `animate` | Play body animation: wave, nod_yes, nod_no, celebrate, think, sleep *(v1.3)* |
 
 To enable web search, set a [Brave Search API key](https://brave.com/search/api/) via `MIMI_SECRET_SEARCH_KEY` in `mimi_secrets.h`.
 

@@ -2,6 +2,9 @@
 #include "mimi_config.h"
 #include "display/display_ui.h"
 #include "display/display_hal.h"
+#ifdef MIMI_HAS_SERVOS
+#include "hardware/body_animator.h"
+#endif
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
@@ -46,6 +49,11 @@ void sleep_manager_reset_timer(void)
 void sleep_manager_enter_deep_sleep(void)
 {
     ESP_LOGI(TAG, "Entering deep sleep, wakeup on GPIO%d", MIMI_SLEEP_WAKEUP_PIN);
+
+#ifdef MIMI_HAS_SERVOS
+    /* Servos en position repos */
+    body_animator_sleep();
+#endif
 
     /* Eteindre l'ecran */
     display_ui_set_state(DISPLAY_SLEEP);

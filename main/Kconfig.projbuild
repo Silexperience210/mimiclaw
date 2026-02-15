@@ -1,11 +1,21 @@
 menu "MimiClaw Configuration"
 
     config MIMI_HAS_DISPLAY
-        bool "Enable T-Display S3 screen (v1.2)"
+        bool "Enable T-Display S3 screen (v1.2+)"
         default n
         help
             Active le support de l'ecran ST7789V du LilyGo T-Display S3,
             les boutons GPIO0/GPIO14, et le deep sleep automatique.
-            Desactive pour les boards sans ecran (v1).
+            Desactive pour les boards sans ecran (v1.0).
+
+    config MIMI_HAS_SERVOS
+        bool "Enable HC-SR04 + Servos (v1.3)"
+        default n
+        depends on MIMI_HAS_DISPLAY
+        help
+            Active le capteur ultrason HC-SR04 (GPIO16/17) et 4 servomoteurs
+            (GPIO18, 10, 11, 12) pour les animations corporelles physiques.
+            Necessite l'ecran (v1.2) car les animations sont liees aux etats
+            d'affichage. v1.3 = ecran + capteurs + servos.
 
 endmenu

@@ -127,6 +127,31 @@
 #define MIMI_DISP_TRANSITION_FRAMES 6         /* frames pour transition */
 #define MIMI_DISP_BUBBLE_COUNT   8            /* bulles aquarium */
 
+/* HC-SR04 Ultrasonic */
+#define MIMI_US_TRIG_PIN         16
+#define MIMI_US_ECHO_PIN         17
+#define MIMI_US_POLL_MS          200   /* polling toutes les 200ms */
+#define MIMI_US_TIMEOUT_US       25000 /* ~4m max */
+#define MIMI_US_MEDIAN_SAMPLES   3
+
+/* Servomoteurs */
+#define MIMI_SERVO_HEAD_H_PIN    18    /* tete gauche/droite */
+#define MIMI_SERVO_HEAD_V_PIN    10    /* tete haut/bas */
+#define MIMI_SERVO_CLAW_L_PIN    11    /* pince gauche */
+#define MIMI_SERVO_CLAW_R_PIN    12    /* pince droite */
+#define MIMI_SERVO_FREQ_HZ       50
+#define MIMI_SERVO_MIN_US        500
+#define MIMI_SERVO_MAX_US        2500
+#define MIMI_SERVO_STEP_DEG      2     /* increment par tick pour mouvement progressif */
+#define MIMI_SERVO_STEP_MS       15    /* delai entre chaque pas */
+
+/* Body Animator */
+#define MIMI_BODY_STACK          (4 * 1024)
+#define MIMI_BODY_PRIO           3
+#define MIMI_BODY_CORE           0
+#define MIMI_US_NEAR_CM          30    /* seuil "excite" */
+#define MIMI_US_DETECT_CM        60    /* seuil "presence" */
+
 /* Boutons */
 #define MIMI_BTN_LEFT            0    /* GPIO0 - Boot */
 #define MIMI_BTN_RIGHT           14   /* GPIO14 - User */

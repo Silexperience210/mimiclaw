@@ -2,6 +2,9 @@
 #include "tools/tool_web_search.h"
 #include "tools/tool_get_time.h"
 #include "tools/tool_files.h"
+#ifdef MIMI_HAS_SERVOS
+#include "tools/tool_servo.h"
+#endif
 
 #include <string.h>
 #include "esp_log.h"
@@ -9,7 +12,7 @@
 
 static const char *TAG = "tools";
 
-#define MAX_TOOLS 8
+#define MAX_TOOLS 12
 
 static mimi_tool_t s_tools[MAX_TOOLS];
 static int s_tool_count = 0;
@@ -129,6 +132,58 @@ esp_err_t tool_registry_init(void)
         .execute = tool_list_dir_execute,
     };
     register_tool(&ld);
+
+#ifdef MIMI_HAS_SERVOS
+    /* Register move_head */
+    mimi_tool_t mh = {
+        .name = "move_head",
+        .description = "Move the robot head. Specify horizontal (0=left, 90=center, 180=right) and/or vertical (0=down, 90=center, 180=up) angles.",
+        .input_schema_json =
+            "{\"type\":\"object\","
+            "\"properties\":{\"horizontal\":{\"type\":\"integer\",\"description\":\"Horizontal angle 0-180\",\"minimum\":0,\"maximum\":180},"
+            "\"vertical\":{\"type\":\"integer\",\"description\":\"Vertical angle 0-180\",\"minimum\":0,\"maximum\":180}},"
+            "\"required\":[]}",
+        .execute = tool_move_head_execute,
+    };
+    register_tool(&mh);
+
+    /* Register move_claw */
+    mimi_tool_t mc = {
+        .name = "move_claw",
+        .description = "Move the robot claws. 0=closed, 180=fully open.",
+        .input_schema_json =
+            "{\"type\":\"object\","
+            "\"properties\":{\"side\":{\"type\":\"string\",\"enum\":[\"left\",\"right\",\"both\"],\"description\":\"Which claw\"},"
+            "\"angle\":{\"type\":\"integer\",\"description\":\"Angle 0-180\",\"minimum\":0,\"maximum\":180}},"
+            "\"required\":[\"angle\"]}",
+        .execute = tool_move_claw_execute,
+    };
+    register_tool(&mc);
+
+    /* Register read_distance */
+    mimi_tool_t rd = {
+        .name = "read_distance",
+        .description = "Read the ultrasonic distance sensor. Returns distance in cm to nearest object, or error if nothing detected.",
+        .input_schema_json =
+            "{\"type\":\"object\","
+            "\"properties\":{},"
+            "\"required\":[]}",
+        .execute = tool_read_distance_execute,
+    };
+    register_tool(&rd);
+
+    /* Register animate */
+    mimi_tool_t an = {
+        .name = "animate",
+        .description = "Play a predefined body animation: wave (wave goodbye/hello), nod_yes, nod_no, celebrate (happy dance), think (pondering pose), sleep (drowsy).",
+        .input_schema_json =
+            "{\"type\":\"object\","
+            "\"properties\":{\"animation\":{\"type\":\"string\",\"enum\":[\"wave\",\"nod_yes\",\"nod_no\",\"celebrate\",\"think\",\"sleep\"],\"description\":\"Animation name\"}},"
+            "\"required\":[\"animation\"]}",
+        .execute = tool_animate_execute,
+    };
+    register_tool(&an);
+#endif
 
     build_tools_json();
 

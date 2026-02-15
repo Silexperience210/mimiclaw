@@ -11,15 +11,36 @@ jobs:
     container:
       image: espressif/idf:v5.5.2
 
+    strategy:
+      matrix:
+        include:
+          - variant: v1
+            sdkconfig_extra: ""
+            suffix: "base"
+          - variant: v1.2
+            sdkconfig_extra: "CONFIG_MIMI_HAS_DISPLAY=y"
+            suffix: "display"
+          - variant: v1.3
+            sdkconfig_extra: "CONFIG_MIMI_HAS_DISPLAY=y\nCONFIG_MIMI_HAS_SERVOS=y"
+            suffix: "full"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build firmware
+      - name: Build firmware (${{ matrix.variant }})
         shell: bash
+        env:
+          SDKCONFIG_EXTRA: ${{ matrix.sdkconfig_extra }}
         run: |
           . $IDF_PATH/export.sh
           idf.py set-target esp32s3
+
+          # Ajouter les options specifiques a la variante
+          if [ -n "$SDKCONFIG_EXTRA" ]; then
+            printf '%b\n' "$SDKCONFIG_EXTRA" >> sdkconfig.defaults
+          fi
+
           idf.py build
 
       - name: Prepare release artifacts
@@ -27,66 +48,64 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           VERSION="${GITHUB_REF_NAME}"
+          SUFFIX="${{ matrix.suffix }}"
 
           # Generate merged firmware for single-command flashing
           esptool.py --chip esp32s3 merge_bin \
             --flash_mode qio \
             --flash_size 16MB \
             --flash_freq 80m \
-            -o "mimiclaw-full-${VERSION}.bin" \
+            -o "mimiclaw-${SUFFIX}-${VERSION}.bin" \
             0x0     build/bootloader/bootloader.bin \
             0x8000  build/partition_table/partition-table.bin \
             0xf000  build/ota_data_initial.bin \
             0x20000 build/mimiclaw.bin
 
-          # Copy individual binaries with version suffix
-          cp build/mimiclaw.bin              "mimiclaw-${VERSION}.bin"
-          cp build/bootloader/bootloader.bin "bootloader-${VERSION}.bin"
-          cp build/partition_table/partition-table.bin "partition-table-${VERSION}.bin"
-          cp build/ota_data_initial.bin      "ota_data_initial-${VERSION}.bin"
+          # Copy app binary with variant suffix
+          cp build/mimiclaw.bin "mimiclaw-${SUFFIX}-app-${VERSION}.bin"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.suffix }}
+          path: mimiclaw-*.bin
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           body: |
+            ## Firmware Variants
+
+            | Variante | Description | Fichier |
+            |---|---|---|
+            | **v1.0 (base)** | ESP32-S3 sans ecran | `mimiclaw-base-*.bin` |
+            | **v1.2 (display)** | + Ecran T-Display S3 | `mimiclaw-display-*.bin` |
+            | **v1.3 (full)** | + HC-SR04 + 4 servos | `mimiclaw-full-*.bin` |
+
             ## Flashing Guide
 
-            ### 1. Merged firmware (easiest)
-
-            Download `mimiclaw-full-${{ github.ref_name }}.bin` and flash with a single command:
+            Download the merged firmware for your variant and flash:
 
             ```bash
-            esptool.py --chip esp32s3 -b 460800 write_flash 0x0 mimiclaw-full-${{ github.ref_name }}.bin
+            esptool.py --chip esp32s3 -b 460800 write_flash 0x0 mimiclaw-<variant>-${{ github.ref_name }}.bin
             ```
 
-            ### 2. Individual binaries (advanced)
+            ### OTA update
 
-            ```bash
-            esptool.py --chip esp32s3 -b 460800 write_flash \
-              0x0     bootloader-${{ github.ref_name }}.bin \
-              0x8000  partition-table-${{ github.ref_name }}.bin \
-              0xf000  ota_data_initial-${{ github.ref_name }}.bin \
-              0x20000 mimiclaw-${{ github.ref_name }}.bin
-            ```
+            Upload `mimiclaw-<variant>-app-${{ github.ref_name }}.bin` via the OTA endpoint.
 
-            ### 3. OTA update (for devices already running MimiClaw)
+            ### First-time setup
 
-            Upload `mimiclaw-${{ github.ref_name }}.bin` via the OTA endpoint.
-
-            ### 4. First-time setup
-
-            After flashing, connect via serial (115200 baud) and configure:
-
-            ```
-            wifi <ssid> <password>
-            tg_token <your-telegram-bot-token>
-            api_key <your-anthropic-api-key>
-            reboot
-            ```
+            After flashing, connect to WiFi **LilyClaw-Setup** (pass: lilyclaw1) and open http://192.168.4.1 to configure.
           files: |
-            mimiclaw-full-${{ github.ref_name }}.bin
-            mimiclaw-${{ github.ref_name }}.bin
-            bootloader-${{ github.ref_name }}.bin
-            partition-table-${{ github.ref_name }}.bin
-            ota_data_initial-${{ github.ref_name }}.bin
+            mimiclaw-*.bin

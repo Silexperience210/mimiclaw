@@ -51,14 +51,34 @@ jobs:
           cp build/ota_data_initial.bin                 docs/firmware/v1.2/
           cp build/mimiclaw.bin                         docs/firmware/v1.2/
 
+      - name: Build v1.3 (ecran + HC-SR04 + servos)
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py fullclean
+          # Repartir de sdkconfig.defaults propre
+          git checkout sdkconfig.defaults
+          printf "CONFIG_MIMI_HAS_DISPLAY=y\nCONFIG_MIMI_HAS_SERVOS=y\n" >> sdkconfig.defaults
+          idf.py set-target esp32s3
+          idf.py build
+          mkdir -p docs/firmware/v1.3
+          cp build/bootloader/bootloader.bin           docs/firmware/v1.3/
+          cp build/partition_table/partition-table.bin  docs/firmware/v1.3/
+          cp build/ota_data_initial.bin                 docs/firmware/v1.3/
+          cp build/mimiclaw.bin                         docs/firmware/v1.3/
+
       - name: Generate manifests
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME:-dev}"
           python3 -c "
           import json
-          for v in ['v1', 'v1.2']:
-              name = 'LilyClaw v1 (sans ecran)' if v == 'v1' else 'LilyClaw v1.2 (T-Display S3 + ecran)'
+          variants = [
+              ('v1',   'LilyClaw v1 (sans ecran)'),
+              ('v1.2', 'LilyClaw v1.2 (T-Display S3 + ecran)'),
+              ('v1.3', 'LilyClaw v1.3 (ecran + HC-SR04 + servos)'),
+          ]
+          for v, name in variants:
               m = {
                   'name': name,
                   'version': '$VERSION',
@@ -84,8 +104,8 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f docs/firmware/ docs/manifest-v1.json docs/manifest-v1.2.json
+          git add -f docs/firmware/ docs/manifest-v1.json docs/manifest-v1.2.json docs/manifest-v1.3.json
           git diff --cached --quiet && echo "No changes to commit" && exit 0
-          git commit -m "chore: update firmware v1 + v1.2 (${GITHUB_REF_NAME:-manual})"
+          git commit -m "chore: update firmware v1 + v1.2 + v1.3 (${GITHUB_REF_NAME:-manual})"
           git pull --rebase origin main || true
           git push origin HEAD:main

@@ -29,6 +29,16 @@ if(CONFIG_MIMI_HAS_DISPLAY)
     )
 endif()
 
+# v1.3 : HC-SR04 + 4 servos + animations corporelles
+if(CONFIG_MIMI_HAS_SERVOS)
+    list(APPEND SRCS
+        "hardware/servo_driver.c"
+        "hardware/ultrasonic.c"
+        "hardware/body_animator.c"
+        "tools/tool_servo.c"
+    )
+endif()
+
 idf_component_register(
     SRCS ${SRCS}
     INCLUDE_DIRS "."
@@ -40,4 +50,8 @@ idf_component_register(
 
 if(CONFIG_MIMI_HAS_DISPLAY)
     target_compile_definitions(${COMPONENT_LIB} PUBLIC MIMI_HAS_DISPLAY=1)
+endif()
+
+if(CONFIG_MIMI_HAS_SERVOS)
+    target_compile_definitions(${COMPONENT_LIB} PUBLIC MIMI_HAS_SERVOS=1)
 endif()

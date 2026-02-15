@@ -9,6 +9,9 @@
 #include "display/display_ui.h"
 #include "power/sleep_manager.h"
 #endif
+#ifdef MIMI_HAS_SERVOS
+#include "hardware/body_animator.h"
+#endif
 
 #include <string.h>
 #include <stdlib.h>
@@ -104,9 +107,18 @@ static void agent_loop_task(void *arg)
         if (err != ESP_OK) continue;
 
         ESP_LOGI(TAG, "Processing message from %s:%s", msg.channel, msg.chat_id);
+#ifdef MIMI_HAS_SERVOS
+        /* Reaction corporelle : surprise a la reception du message */
+        body_animator_set_mood(MOOD_EXCITED);
+        vTaskDelay(pdMS_TO_TICKS(500));
+#endif
 #ifdef MIMI_HAS_DISPLAY
         display_ui_set_state(DISPLAY_THINKING);
         sleep_manager_reset_timer();
+#endif
+#ifdef MIMI_HAS_SERVOS
+        body_animator_set_state(DISPLAY_THINKING);
+        body_animator_set_mood(MOOD_FOCUSED);
 #endif
 
         /* 1. Build system prompt */
@@ -198,6 +210,10 @@ static void agent_loop_task(void *arg)
             display_ui_set_mood(MOOD_PROUD);
             display_ui_set_state(DISPLAY_IDLE);
 #endif
+#ifdef MIMI_HAS_SERVOS
+            body_animator_set_mood(MOOD_PROUD);
+            body_animator_set_state(DISPLAY_IDLE);
+#endif
 
             /* Push response to outbound */
             mimi_msg_t out = {0};
@@ -217,6 +233,10 @@ static void agent_loop_task(void *arg)
             }
 #ifdef MIMI_HAS_DISPLAY
             display_ui_set_state(DISPLAY_IDLE);
+#endif
+#ifdef MIMI_HAS_SERVOS
+            body_animator_set_state(DISPLAY_IDLE);
+            body_animator_set_mood(MOOD_NEUTRAL);
 #endif
         }
 

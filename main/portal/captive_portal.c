@@ -82,7 +82,7 @@ static const char PORTAL_HTML[] =
 "</style></head><body>"
 "<div class='container'>"
 "<div class='header'>"
-"<div class='logo'>&#128049;</div>"
+"<div class='logo'>&#129438;</div>"
 "<h1>MimiClaw Setup</h1>"
 "<div class='subtitle'>CONFIGURATION PORTAL</div>"
 "</div>"
