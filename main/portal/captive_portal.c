@@ -182,18 +182,8 @@ static const char PORTAL_HTML[] =
 "</script></body></html>";
 
 /* ================================================================
- * HELPER: lire config NVS avec masquage des cles sensibles
+ * HELPER: lire config NVS
  * ================================================================ */
-
-static void mask_value(const char *src, char *dst, size_t dst_len)
-{
-    size_t slen = strlen(src);
-    if (slen <= 4) {
-        snprintf(dst, dst_len, "****");
-    } else {
-        snprintf(dst, dst_len, "%.4s****", src);
-    }
-}
 
 static char *build_config_json(void)
 {
