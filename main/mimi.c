@@ -194,4 +194,14 @@ void app_main(void)
     }
 
     ESP_LOGI(TAG, "MimiClaw ready. Type 'help' for CLI commands.");
+
+    /* Monitoring memoire periodique — aide a diagnostiquer les reboots */
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(30000)); /* toutes les 30s */
+        ESP_LOGI(TAG, "[MEM] Internal free: %d min: %d | PSRAM free: %d min: %d",
+                 (int)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                 (int)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+                 (int)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                 (int)heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM));
+    }
 }

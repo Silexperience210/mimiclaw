@@ -8,6 +8,7 @@
 #include "freertos/task.h"
 
 #include <stdlib.h>
+#include "esp_rom_sys.h"  /* esp_rom_delay_us */
 
 static const char *TAG = "ultrasonic";
 
@@ -42,7 +43,9 @@ esp_err_t ultrasonic_init(void)
     return ESP_OK;
 }
 
-/* Lecture unique sans filtre — retourne cm ou -1 */
+/* Lecture unique sans filtre — retourne cm ou -1
+ * Le busy-wait est necessaire pour la precision microseconde du HC-SR04.
+ * Timeouts reduits pour minimiser le blocage du scheduler. */
 static int single_read_cm(void)
 {
     /* Pulse TRIG 10us */
@@ -52,16 +55,16 @@ static int single_read_cm(void)
     esp_rom_delay_us(10);
     gpio_set_level(MIMI_US_TRIG_PIN, 0);
 
-    /* Attendre ECHO monte (timeout) */
+    /* Attendre ECHO monte — timeout 10ms (normalement < 500us) */
     int64_t start = esp_timer_get_time();
     while (gpio_get_level(MIMI_US_ECHO_PIN) == 0) {
-        if ((esp_timer_get_time() - start) > MIMI_US_TIMEOUT_US) return -1;
+        if ((esp_timer_get_time() - start) > 10000) return -1;
     }
 
-    /* Mesurer duree ECHO haut */
+    /* Mesurer duree ECHO haut — timeout 18ms (~3m aller-retour) */
     int64_t echo_start = esp_timer_get_time();
     while (gpio_get_level(MIMI_US_ECHO_PIN) == 1) {
-        if ((esp_timer_get_time() - echo_start) > MIMI_US_TIMEOUT_US) return -1;
+        if ((esp_timer_get_time() - echo_start) > 18000) return -1;
     }
     int64_t echo_end = esp_timer_get_time();
 
@@ -87,7 +90,7 @@ int ultrasonic_read_cm(void)
             samples[valid++] = d;
         }
         if (i < MIMI_US_MEDIAN_SAMPLES - 1) {
-            esp_rom_delay_us(1000); /* 1ms entre lectures */
+            vTaskDelay(1); /* yield entre les lectures (~10ms tick) */
         }
     }
 

@@ -12,6 +12,7 @@
 #include "esp_log.h"
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
+#include "esp_heap_caps.h"
 #include "nvs.h"
 #include "cJSON.h"
 
@@ -36,7 +37,7 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt)
             if (new_cap < resp->len + evt->data_len + 1) {
                 new_cap = resp->len + evt->data_len + 1;
             }
-            char *tmp = realloc(resp->buf, new_cap);
+            char *tmp = heap_caps_realloc(resp->buf, new_cap, MALLOC_CAP_SPIRAM);
             if (!tmp) return ESP_ERR_NO_MEM;
             resp->buf = tmp;
             resp->cap = new_cap;
@@ -86,14 +87,14 @@ static char *tg_api_call_via_proxy(const char *path, const char *post_data)
 
     /* Read response — accumulate until connection close */
     size_t cap = 4096, len = 0;
-    char *buf = calloc(1, cap);
+    char *buf = heap_caps_calloc(1, cap, MALLOC_CAP_SPIRAM);
     if (!buf) { proxy_conn_close(conn); return NULL; }
 
     int timeout = (MIMI_TG_POLL_TIMEOUT_S + 5) * 1000;
     while (1) {
         if (len + 1024 >= cap) {
             cap *= 2;
-            char *tmp = realloc(buf, cap);
+            char *tmp = heap_caps_realloc(buf, cap, MALLOC_CAP_SPIRAM);
             if (!tmp) break;
             buf = tmp;
         }
@@ -123,7 +124,7 @@ static char *tg_api_call_direct(const char *method, const char *post_data)
     snprintf(url, sizeof(url), "https://api.telegram.org/bot%s/%s", s_bot_token, method);
 
     http_resp_t resp = {
-        .buf = calloc(1, 4096),
+        .buf = heap_caps_calloc(1, 4096, MALLOC_CAP_SPIRAM),
         .len = 0,
         .cap = 4096,
     };
