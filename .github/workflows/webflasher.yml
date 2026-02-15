@@ -56,9 +56,9 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           idf.py fullclean
-          # Repartir de sdkconfig.defaults propre
-          git checkout sdkconfig.defaults
-          printf "CONFIG_MIMI_HAS_DISPLAY=y\nCONFIG_MIMI_HAS_SERVOS=y\n" >> sdkconfig.defaults
+          # sdkconfig.defaults a deja CONFIG_MIMI_HAS_DISPLAY=y du step v1.2
+          # On ajoute juste SERVOS
+          echo "CONFIG_MIMI_HAS_SERVOS=y" >> sdkconfig.defaults
           idf.py set-target esp32s3
           idf.py build
           mkdir -p docs/firmware/v1.3
