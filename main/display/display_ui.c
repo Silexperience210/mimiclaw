@@ -494,7 +494,7 @@ static void draw_status_bar(void)
     }
     /* Compteur messages en haut a droite */
     if (s_msg_count > 0) {
-        char cnt[8];
+        char cnt[12];
         snprintf(cnt, sizeof(cnt), "%lu", (unsigned long)s_msg_count);
         int len = strlen(cnt);
         fb_draw_string(MIMI_DISP_WIDTH - len * 6 - 2, 2, cnt, COL_ACCENT, 1);
