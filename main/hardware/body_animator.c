@@ -49,44 +49,44 @@ static uint8_t rand_around(uint8_t center, int range)
 
 /* --- Animations par etat --- */
 
-/* IDLE : micro-mouvements respiratoires */
+/* IDLE : mouvements respiratoires */
 static void anim_idle(void)
 {
-    uint8_t hh = breathe(90, 3, 40);
-    uint8_t hv = breathe(90, 2, 50);
+    uint8_t hh = breathe(90, 10, 30);
+    uint8_t hv = breathe(90, 8, 40);
     servo_set_angle_immediate(SERVO_HEAD_H, hh);
     servo_set_angle_immediate(SERVO_HEAD_V, hv);
 
-    /* Pinces legere respiration */
-    uint8_t cl = breathe(10, 3, 60);
+    /* Pinces respiration */
+    uint8_t cl = breathe(20, 10, 50);
     servo_set_angle_immediate(SERVO_CLAW_L, cl);
     servo_set_angle_immediate(SERVO_CLAW_R, cl);
 }
 
-/* IDLE + presence detectee : tete se tourne vers la personne */
+/* IDLE + presence detectee : tete se tourne, pinces curieuses */
 static void anim_idle_presence(void)
 {
-    /* Tete suit la direction (simplifie : on tourne vers le centre-avant) */
-    uint8_t hh = breathe(90, 5, 30);
-    uint8_t hv = breathe(80, 3, 40);
+    uint8_t hh = breathe(90, 20, 20);
+    uint8_t hv = breathe(75, 10, 30);
     servo_set_angle_immediate(SERVO_HEAD_H, hh);
     servo_set_angle_immediate(SERVO_HEAD_V, hv);
 
-    /* Pinces legèrement ouvertes — curiosite */
-    servo_set_angle_immediate(SERVO_CLAW_L, 30);
-    servo_set_angle_immediate(SERVO_CLAW_R, 30);
+    /* Pinces ouvertes — curiosite */
+    uint8_t cl = breathe(60, 15, 25);
+    servo_set_angle_immediate(SERVO_CLAW_L, cl);
+    servo_set_angle_immediate(SERVO_CLAW_R, cl);
 }
 
 /* Presence tres proche : excite */
 static void anim_near_presence(void)
 {
-    uint8_t hh = breathe(90, 15, 10);  /* tete tourne vite */
-    uint8_t hv = breathe(85, 8, 15);
+    uint8_t hh = breathe(90, 35, 6);   /* tete tourne vite et large */
+    uint8_t hv = breathe(80, 20, 8);
     servo_set_angle_immediate(SERVO_HEAD_H, hh);
     servo_set_angle_immediate(SERVO_HEAD_V, hv);
 
-    /* Pinces ouvertes */
-    uint8_t cl = breathe(120, 20, 8);
+    /* Pinces grandes ouvertes */
+    uint8_t cl = breathe(140, 30, 5);
     servo_set_angle_immediate(SERVO_CLAW_L, cl);
     servo_set_angle_immediate(SERVO_CLAW_R, cl);
 }
@@ -94,40 +94,40 @@ static void anim_near_presence(void)
 /* THINKING : tete penchee, pince G gratte le menton */
 static void anim_thinking(void)
 {
-    servo_set_angle_immediate(SERVO_HEAD_H, 70);  /* tete penchee a gauche */
-    uint8_t hv = breathe(80, 3, 30);
+    servo_set_angle_immediate(SERVO_HEAD_H, 55);  /* tete bien penchee a gauche */
+    uint8_t hv = breathe(75, 10, 20);
     servo_set_angle_immediate(SERVO_HEAD_V, hv);
 
-    /* Pince gauche "gratte menton" */
-    uint8_t cl = breathe(60, 15, 12);
+    /* Pince gauche "gratte menton" — mouvement ample */
+    uint8_t cl = breathe(70, 30, 8);
     servo_set_angle_immediate(SERVO_CLAW_L, cl);
-    servo_set_angle_immediate(SERVO_CLAW_R, 5);  /* pince droite reposee */
+    servo_set_angle_immediate(SERVO_CLAW_R, 10);
 }
 
 /* MESSAGE recu : surprise */
 static void anim_message_received(void)
 {
-    /* Transition rapide : pinces s'ouvrent, tete se redresse */
+    /* Transition rapide : pinces grandes ouvertes, tete en arriere */
     servo_set_angle_immediate(SERVO_HEAD_H, 90);
-    servo_set_angle_immediate(SERVO_HEAD_V, 95);  /* tete legerement en arriere */
-    servo_set_angle_immediate(SERVO_CLAW_L, 150);
-    servo_set_angle_immediate(SERVO_CLAW_R, 150);
+    servo_set_angle_immediate(SERVO_HEAD_V, 120);
+    servo_set_angle_immediate(SERVO_CLAW_L, 170);
+    servo_set_angle_immediate(SERVO_CLAW_R, 170);
 }
 
-/* PROUD : fier — pinces levees, hochement */
+/* PROUD : fier — pinces levees haut, hochement ample */
 static void anim_proud(void)
 {
     servo_set_angle_immediate(SERVO_HEAD_H, 90);
-    uint8_t hv = breathe(90, 8, 8); /* hochement rapide */
+    uint8_t hv = breathe(90, 20, 6);  /* hochement rapide et ample */
     servo_set_angle_immediate(SERVO_HEAD_V, hv);
-    servo_set_angle_immediate(SERVO_CLAW_L, 160);
-    servo_set_angle_immediate(SERVO_CLAW_R, 160);
+    servo_set_angle_immediate(SERVO_CLAW_L, 175);
+    servo_set_angle_immediate(SERVO_CLAW_R, 175);
 }
 
-/* SLEEPY : tete tombe, pinces relachees */
+/* SLEEPY : tete tombe bas, pinces relachees */
 static void anim_sleepy(void)
 {
-    uint8_t hv = breathe(60, 2, 80); /* respiration lente, tete basse */
+    uint8_t hv = breathe(45, 5, 60);  /* respiration lente, tete bien basse */
     servo_set_angle_immediate(SERVO_HEAD_H, 90);
     servo_set_angle_immediate(SERVO_HEAD_V, hv);
     servo_set_angle_immediate(SERVO_CLAW_L, 5);

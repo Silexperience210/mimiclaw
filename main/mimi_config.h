@@ -149,8 +149,8 @@
 #define MIMI_BODY_STACK          (4 * 1024)
 #define MIMI_BODY_PRIO           3
 #define MIMI_BODY_CORE           0
-#define MIMI_US_NEAR_CM          30    /* seuil "excite" */
-#define MIMI_US_DETECT_CM        60    /* seuil "presence" */
+#define MIMI_US_NEAR_CM          80    /* seuil "excite" */
+#define MIMI_US_DETECT_CM        200   /* seuil "presence" (~2m) */
 
 /* Boutons */
 #define MIMI_BTN_LEFT            0    /* GPIO0 - Boot */
