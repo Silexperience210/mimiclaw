@@ -131,7 +131,7 @@
 #define MIMI_US_TRIG_PIN         16
 #define MIMI_US_ECHO_PIN         17
 #define MIMI_US_POLL_MS          200   /* polling toutes les 200ms */
-#define MIMI_US_TIMEOUT_US       25000 /* ~4m max */
+#define MIMI_US_TIMEOUT_US       30000 /* ~5m max */
 #define MIMI_US_MEDIAN_SAMPLES   3
 
 /* Servomoteurs */
@@ -149,8 +149,9 @@
 #define MIMI_BODY_STACK          (4 * 1024)
 #define MIMI_BODY_PRIO           3
 #define MIMI_BODY_CORE           0
-#define MIMI_US_NEAR_CM          80    /* seuil "excite" */
-#define MIMI_US_DETECT_CM        200   /* seuil "presence" (~2m) */
+#define MIMI_US_NEAR_CM          50    /* seuil "focus" — mouvement precis */
+#define MIMI_US_MID_CM           150   /* seuil "approche" — mouvement moyen */
+#define MIMI_US_DETECT_CM        300   /* seuil "detection" — grands mouvements */
 
 /* Boutons */
 #define MIMI_BTN_LEFT            0    /* GPIO0 - Boot */
