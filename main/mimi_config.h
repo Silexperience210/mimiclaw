@@ -97,8 +97,8 @@
 #define MIMI_PORTAL_DNS_STACK    (4 * 1024)
 
 /* Display T-Display S3 (ST7789V, Intel 8080 parallel 8-bit) */
-#define MIMI_DISP_WIDTH          170
-#define MIMI_DISP_HEIGHT         320
+#define MIMI_DISP_WIDTH          320
+#define MIMI_DISP_HEIGHT         170
 #define MIMI_DISP_PIN_CS         6
 #define MIMI_DISP_PIN_DC         7
 #define MIMI_DISP_PIN_RST        5

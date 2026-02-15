@@ -78,10 +78,10 @@ esp_err_t display_hal_init(void)
     ESP_ERROR_CHECK(esp_lcd_panel_reset(s_panel));
     ESP_ERROR_CHECK(esp_lcd_panel_init(s_panel));
 
-    /* T-Display S3 : inversion des couleurs, portrait natif 170x320 */
+    /* T-Display S3 : paysage 320x170, inversion couleurs */
     ESP_ERROR_CHECK(esp_lcd_panel_invert_color(s_panel, true));
-    ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(s_panel, false));
-    ESP_ERROR_CHECK(esp_lcd_panel_mirror(s_panel, true, true));
+    ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(s_panel, true));
+    ESP_ERROR_CHECK(esp_lcd_panel_mirror(s_panel, false, true));
 
     /* Allumer l'ecran */
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(s_panel, true));

@@ -506,27 +506,25 @@ static void draw_idle(void)
     fb_clear(COL_BG);
     draw_status_bar();
 
-    int sprite_scale = 3;
-    int sx = (MIMI_DISP_WIDTH - LOBSTER_W * sprite_scale) / 2;
-    int sy = 30;
+    /* Paysage : lobster a gauche, texte a droite */
+    int sprite_scale = 2;
+    int sx = 20;
+    int sy = (MIMI_DISP_HEIGHT - LOBSTER_H * sprite_scale) / 2;
 
-    /* Choisir le frame selon l'humeur */
     bool use_blink = false;
     if (s_mood == MOOD_SLEEPY) {
-        use_blink = true;  /* yeux toujours fermes */
+        use_blink = true;
     } else if (s_mood == MOOD_NEUTRAL) {
-        /* Clignement aleatoire */
         use_blink = (s_frame_count % (MIMI_DISP_FPS_IDLE * 4) < 1);
     }
 
     const uint16_t *frame = use_blink ? lobster_blink : lobster_idle;
     fb_draw_sprite(sx, sy, frame, LOBSTER_W, LOBSTER_H, sprite_scale);
-
-    /* Overlay emotions */
     draw_mood_eyes(sx, sy, sprite_scale);
 
-    /* Titre */
-    fb_draw_string(28, sy + LOBSTER_H * sprite_scale + 10, "LilyClaw", COL_ACCENT, 2);
+    /* Titre a droite du lobster */
+    int tx = sx + LOBSTER_W * sprite_scale + 20;
+    fb_draw_string(tx, 30, "LilyClaw", COL_ACCENT, 2);
 
     /* Sous-titre selon humeur */
     const char *sub = "AI Assistant";
@@ -537,7 +535,11 @@ static void draw_idle(void)
     case MOOD_PROUD:   sub = "Nailed it!"; break;
     default: break;
     }
-    fb_draw_string(30, sy + LOBSTER_H * sprite_scale + 35, sub, COL_DIM, 1);
+    fb_draw_string(tx, 55, sub, COL_DIM, 1);
+
+    /* Ligne decorative sous le titre */
+    fb_fill_rect(tx, 68, 100, 1, COL_ACCENT);
+    fb_draw_string(tx, 75, "ESP32-S3 AI", COL_DIM, 1);
 }
 
 static void draw_thinking(void)
@@ -545,37 +547,33 @@ static void draw_thinking(void)
     fb_clear(COL_BG);
     draw_status_bar();
 
-    int sprite_scale = 3;
-    int sx = (MIMI_DISP_WIDTH - LOBSTER_W * sprite_scale) / 2;
-    int sy = 20;
+    /* Paysage : lobster a gauche, thinking a droite */
+    int sprite_scale = 2;
+    int sx = 20;
+    int sy = (MIMI_DISP_HEIGHT - LOBSTER_H * sprite_scale) / 2;
 
-    /* Alterner frames */
     int anim = (s_frame_count / 4) % 2;
     const uint16_t *frame = anim ? lobster_blink : lobster_idle;
     fb_draw_sprite(sx, sy, frame, LOBSTER_W, LOBSTER_H, sprite_scale);
 
-    /* Lunettes de reflexion */
     s_mood = MOOD_FOCUSED;
     draw_mood_eyes(sx, sy, sprite_scale);
 
-    /* "Thinking" avec dots animes — typewriter */
+    /* Texte a droite */
+    int tx = sx + LOBSTER_W * sprite_scale + 20;
     int dots = (s_frame_count / 5) % 4;
     char think_text[16] = "Thinking";
     for (int i = 0; i < dots; i++) strcat(think_text, ".");
+    fb_draw_string(tx, 40, think_text, COL_THINK, 2);
 
-    fb_draw_string(20, sy + LOBSTER_H * sprite_scale + 10, think_text, COL_THINK, 2);
-
-    /* Barre de progression animee */
-    int bar_y = sy + LOBSTER_H * sprite_scale + 40;
-    int bar_w = 120;
-    int bar_x = (MIMI_DISP_WIDTH - bar_w) / 2;
-    fb_fill_rect(bar_x, bar_y, bar_w, 3, 0x2104);
-
+    /* Barre de progression */
+    int bar_y = 75;
+    int bar_w = 180;
+    fb_fill_rect(tx, bar_y, bar_w, 4, 0x2104);
     int progress = (s_frame_count * 3) % bar_w;
-    int seg_w = 30;
-    int seg_start = progress;
-    if (seg_start + seg_w > bar_w) seg_w = bar_w - seg_start;
-    fb_fill_rect(bar_x + seg_start, bar_y, seg_w, 3, COL_THINK);
+    int seg_w = 40;
+    if (progress + seg_w > bar_w) seg_w = bar_w - progress;
+    fb_fill_rect(tx + progress, bar_y, seg_w, 4, COL_THINK);
 }
 
 static void draw_message(void)
@@ -583,19 +581,19 @@ static void draw_message(void)
     fb_clear(COL_BG);
     draw_status_bar();
 
-    fb_draw_string(4, 16, "Last message:", COL_ACCENT, 1);
+    fb_draw_string(8, 18, "Last message:", COL_ACCENT, 1);
+    fb_fill_rect(8, 28, 200, 1, COL_ACCENT);
 
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     if (s_message[0]) {
-        /* Typewriter : affiche progressivement */
         int max_chars = s_typewriter_pos;
         if (max_chars > (int)strlen(s_message)) max_chars = strlen(s_message);
-        fb_draw_string_n(4, 30, s_message, max_chars, COL_TEXT, 1);
+        fb_draw_string_n(8, 34, s_message, max_chars, COL_TEXT, 1);
         if (s_typewriter_pos <= (int)strlen(s_message)) {
-            s_typewriter_pos += 2;  /* 2 chars par frame */
+            s_typewriter_pos += 2;
         }
     } else {
-        fb_draw_string(4, 30, "(aucun message)", COL_DIM, 1);
+        fb_draw_string(8, 34, "(aucun message)", COL_DIM, 1);
     }
     xSemaphoreGive(s_mutex);
 }
@@ -604,31 +602,31 @@ static void draw_portal(void)
 {
     fb_clear(COL_BG);
 
-    fb_draw_sprite(55, 10, lobster_idle, LOBSTER_W, LOBSTER_H, 2);
+    /* Paysage : lobster a gauche, infos a droite */
+    fb_draw_sprite(15, 25, lobster_idle, LOBSTER_W, LOBSTER_H, 2);
 
-    fb_draw_string(20, 80, "Setup Mode", COL_ACCENT, 2);
-    fb_draw_string(4, 110, "WiFi:", COL_DIM, 1);
-    fb_draw_string(4, 122, MIMI_PORTAL_AP_SSID, COL_TEXT, 1);
-    fb_draw_string(4, 140, "Pass:", COL_DIM, 1);
-    fb_draw_string(4, 152, MIMI_PORTAL_AP_PASS, COL_TEXT, 1);
-    fb_draw_string(4, 175, "Open browser:", COL_DIM, 1);
-    fb_draw_string(4, 190, "192.168.4.1", COL_ACCENT, 2);
+    int tx = 90;
+    fb_draw_string(tx, 10, "Setup Mode", COL_ACCENT, 2);
+    fb_draw_string(tx, 35, "WiFi:", COL_DIM, 1);
+    fb_draw_string(tx + 36, 35, MIMI_PORTAL_AP_SSID, COL_TEXT, 1);
+    fb_draw_string(tx, 50, "Pass:", COL_DIM, 1);
+    fb_draw_string(tx + 36, 50, MIMI_PORTAL_AP_PASS, COL_TEXT, 1);
+    fb_fill_rect(tx, 63, 200, 1, COL_DIM);
+    fb_draw_string(tx, 70, "Open:", COL_DIM, 1);
+    fb_draw_string(tx, 85, "192.168.4.1", COL_ACCENT, 2);
 }
 
 static void draw_screensaver(void)
 {
     fb_clear(COL_OCEAN);
 
-    /* Algues et fond */
     draw_seaweed();
-
-    /* Bulles */
     bubbles_update();
     bubbles_draw();
 
-    /* Lobster qui marche */
+    /* Lobster qui marche — scale 2 = 64x64, hauteur dispo ~150px */
     int sprite_scale = 2;
-    int ly = MIMI_DISP_HEIGHT - 10 - LOBSTER_H * sprite_scale - 5;
+    int ly = MIMI_DISP_HEIGHT - 12 - LOBSTER_H * sprite_scale;
 
     s_lobster_x += s_lobster_dir * 2;
     if (s_lobster_x > MIMI_DISP_WIDTH - LOBSTER_W * sprite_scale - 5) {
@@ -637,19 +635,9 @@ static void draw_screensaver(void)
         s_lobster_dir = 1;
     }
 
-    /* Alterner idle/blink pour mouvement de pattes */
     bool walk_anim = (s_frame_count / 3) % 2;
     const uint16_t *frame = walk_anim ? lobster_blink : lobster_idle;
     fb_draw_sprite(s_lobster_x, ly, frame, LOBSTER_W, LOBSTER_H, sprite_scale);
-
-    /* Petites bulles derriere le lobster */
-    if (s_frame_count % 8 == 0) {
-        int bx = s_lobster_x + LOBSTER_W * sprite_scale / 2;
-        int by = ly - 3;
-        fb_pixel(bx, by, COL_BUBBLE);
-        fb_pixel(bx + 1, by, COL_BUBBLE);
-        fb_pixel(bx, by - 1, COL_BUBBLE);
-    }
 }
 
 /* ---- Notification banner (slide depuis le bas) ---- */
@@ -721,53 +709,52 @@ static void draw_transition(void)
 static void draw_boot_animation(void)
 {
     if (!s_framebuf) {
-        /* Fallback sans PSRAM */
         fill_rect(0, 0, MIMI_DISP_WIDTH, MIMI_DISP_HEIGHT, COL_BG);
         return;
     }
 
-    int sprite_scale = 3;
-    int target_y = 50;
-    int title_y = target_y + LOBSTER_H * sprite_scale + 15;
-    int sx = (MIMI_DISP_WIDTH - LOBSTER_W * sprite_scale) / 2;
+    /* Paysage : lobster a gauche, texte a droite */
+    int sprite_scale = 2;
+    int target_x = 30;
+    int target_y = (MIMI_DISP_HEIGHT - LOBSTER_H * sprite_scale) / 2;
+    int tx = target_x + LOBSTER_W * sprite_scale + 25;
 
-    /* Phase 1 : lobster tombe (15 frames) */
-    for (int f = 0; f < 15; f++) {
+    /* Phase 1 : lobster glisse depuis la gauche (12 frames) */
+    for (int f = 0; f < 12; f++) {
         fb_clear(COL_BG);
-        /* Chute avec easing (acceleration) */
-        int fall_y = -LOBSTER_H * sprite_scale + (target_y + LOBSTER_H * sprite_scale) * f * f / (15 * 15);
-        if (f >= 13) fall_y = target_y + (14 - f) * 4;  /* petit rebond */
-        fb_draw_sprite(sx, fall_y, lobster_idle, LOBSTER_W, LOBSTER_H, sprite_scale);
+        int slide_x = -LOBSTER_W * sprite_scale + (target_x + LOBSTER_W * sprite_scale) * f / 11;
+        if (f >= 10) slide_x = target_x + (11 - f) * 3;  /* petit rebond */
+        fb_draw_sprite(slide_x, target_y, lobster_idle, LOBSTER_W, LOBSTER_H, sprite_scale);
         fb_flush();
-        vTaskDelay(pdMS_TO_TICKS(40));
+        vTaskDelay(pdMS_TO_TICKS(35));
     }
 
-    /* Phase 2 : texte "LilyClaw" lettre par lettre */
+    /* Phase 2 : texte lettre par lettre */
     fb_clear(COL_BG);
-    fb_draw_sprite(sx, target_y, lobster_idle, LOBSTER_W, LOBSTER_H, sprite_scale);
+    fb_draw_sprite(target_x, target_y, lobster_idle, LOBSTER_W, LOBSTER_H, sprite_scale);
     fb_flush();
 
     const char *title = "LilyClaw";
     for (int i = 0; title[i]; i++) {
-        fb_draw_char(28 + i * 12, title_y, title[i], COL_ACCENT, 2);
+        fb_draw_char(tx + i * 12, 40, title[i], COL_ACCENT, 2);
         fb_flush();
-        vTaskDelay(pdMS_TO_TICKS(80));
+        vTaskDelay(pdMS_TO_TICKS(70));
     }
 
     /* Phase 3 : clin d'oeil */
-    vTaskDelay(pdMS_TO_TICKS(300));
+    vTaskDelay(pdMS_TO_TICKS(250));
     fb_clear(COL_BG);
-    fb_draw_sprite(sx, target_y, lobster_blink, LOBSTER_W, LOBSTER_H, sprite_scale);
-    fb_draw_string(28, title_y, "LilyClaw", COL_ACCENT, 2);
+    fb_draw_sprite(target_x, target_y, lobster_blink, LOBSTER_W, LOBSTER_H, sprite_scale);
+    fb_draw_string(tx, 40, "LilyClaw", COL_ACCENT, 2);
     fb_flush();
     vTaskDelay(pdMS_TO_TICKS(200));
 
     fb_clear(COL_BG);
-    fb_draw_sprite(sx, target_y, lobster_idle, LOBSTER_W, LOBSTER_H, sprite_scale);
-    fb_draw_string(28, title_y, "LilyClaw", COL_ACCENT, 2);
-    fb_draw_string(40, title_y + 25, "Ready!", COL_GREEN, 1);
+    fb_draw_sprite(target_x, target_y, lobster_idle, LOBSTER_W, LOBSTER_H, sprite_scale);
+    fb_draw_string(tx, 40, "LilyClaw", COL_ACCENT, 2);
+    fb_draw_string(tx, 65, "Ready!", COL_GREEN, 1);
     fb_flush();
-    vTaskDelay(pdMS_TO_TICKS(800));
+    vTaskDelay(pdMS_TO_TICKS(600));
 }
 
 /* ---- Mise a jour automatique de l'humeur ---- */
