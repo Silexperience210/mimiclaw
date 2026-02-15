@@ -89,8 +89,8 @@
 #define MIMI_CLI_CORE                0
 
 /* Captive Portal (AP mode) */
-#define MIMI_PORTAL_AP_SSID      "MimiClaw-Setup"
-#define MIMI_PORTAL_AP_PASS      "mimiclaw1"
+#define MIMI_PORTAL_AP_SSID      "LilyClaw-Setup"
+#define MIMI_PORTAL_AP_PASS      "lilyclaw1"
 #define MIMI_PORTAL_AP_MAX_CONN  2
 #define MIMI_PORTAL_AP_CHANNEL   1
 #define MIMI_PORTAL_HTTP_PORT    80
@@ -117,9 +117,9 @@
 #define MIMI_DISP_STACK          (8 * 1024)
 #define MIMI_DISP_PRIO           4
 #define MIMI_DISP_CORE           0
-#define MIMI_DISP_FPS_ACTIVE     15
-#define MIMI_DISP_FPS_IDLE       3
-#define MIMI_DISP_FPS_SCREENSAVER 5
+#define MIMI_DISP_FPS_ACTIVE     12
+#define MIMI_DISP_FPS_IDLE       4
+#define MIMI_DISP_FPS_SCREENSAVER 6
 #define MIMI_DISP_BUF_LINES      40   /* lignes par bande de framebuffer */
 #define MIMI_DISP_SCREENSAVER_MS (60 * 1000)  /* 1 min avant screensaver */
 #define MIMI_DISP_BANNER_MS      3000         /* duree notification banner */
