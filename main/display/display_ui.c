@@ -2,6 +2,7 @@
 #include "display_hal.h"
 #include "lobster_sprite.h"
 #include "mimi_config.h"
+#include "ota/ota_manager.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -540,6 +541,13 @@ static void draw_idle(void)
     /* Ligne decorative */
     fb_fill_rect(tx, 65, 120, 1, COL_ACCENT);
     fb_draw_string(tx, 72, "ESP32-S3 AI", COL_DIM, 1);
+
+    /* Version en bas a droite */
+    char ver_str[16];
+    snprintf(ver_str, sizeof(ver_str), "v%s", MIMI_FW_VERSION);
+    int ver_len = strlen(ver_str);
+    fb_draw_string(MIMI_DISP_WIDTH - ver_len * 6 - 4, MIMI_DISP_HEIGHT - 10,
+                   ver_str, COL_DIM, 1);
 }
 
 static void draw_thinking(void)

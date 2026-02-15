@@ -8,6 +8,7 @@
 #include "proxy/http_proxy.h"
 #include "tools/tool_web_search.h"
 #include "portal/captive_portal.h"
+#include "ota/ota_manager.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -313,6 +314,55 @@ static int cmd_portal_stop(int argc, char **argv)
     return 0;
 }
 
+/* --- version command --- */
+static int cmd_version(int argc, char **argv)
+{
+    printf("LilyClaw v%s (%s)\n", ota_get_version(), ota_get_variant());
+    return 0;
+}
+
+/* --- ota_check command --- */
+static int cmd_ota_check(int argc, char **argv)
+{
+    printf("Checking for updates...\n");
+    ota_update_info_t info;
+    esp_err_t ret = ota_check_update(&info);
+    if (ret != ESP_OK) {
+        printf("Error checking for updates.\n");
+        return 1;
+    }
+    if (info.available) {
+        printf("Update available: v%s -> v%s\n", ota_get_version(), info.version);
+        printf("Run 'ota_update' to install.\n");
+    } else {
+        printf("Already on latest version v%s.\n", ota_get_version());
+    }
+    return 0;
+}
+
+/* --- ota_update command --- */
+static int cmd_ota_update(int argc, char **argv)
+{
+    printf("Checking for updates...\n");
+    ota_update_info_t info;
+    esp_err_t ret = ota_check_update(&info);
+    if (ret != ESP_OK) {
+        printf("Error checking for updates.\n");
+        return 1;
+    }
+    if (!info.available) {
+        printf("Already on latest version v%s.\n", ota_get_version());
+        return 0;
+    }
+    printf("Installing v%s... Device will reboot.\n", info.version);
+    ret = ota_update_from_url(info.url);
+    if (ret != ESP_OK) {
+        printf("OTA failed: %s\n", esp_err_to_name(ret));
+        return 1;
+    }
+    return 0; /* unreachable si succes */
+}
+
 /* --- restart command --- */
 static int cmd_restart(int argc, char **argv)
 {
@@ -498,6 +548,30 @@ esp_err_t serial_cli_init(void)
         .func = &cmd_portal_stop,
     };
     esp_console_cmd_register(&portal_stop_cmd);
+
+    /* version */
+    esp_console_cmd_t version_cmd = {
+        .command = "version",
+        .help = "Show firmware version",
+        .func = &cmd_version,
+    };
+    esp_console_cmd_register(&version_cmd);
+
+    /* ota_check */
+    esp_console_cmd_t ota_check_cmd = {
+        .command = "ota_check",
+        .help = "Check for firmware updates on GitHub",
+        .func = &cmd_ota_check,
+    };
+    esp_console_cmd_register(&ota_check_cmd);
+
+    /* ota_update */
+    esp_console_cmd_t ota_update_cmd = {
+        .command = "ota_update",
+        .help = "Download and install firmware update (reboots)",
+        .func = &cmd_ota_update,
+    };
+    esp_console_cmd_register(&ota_update_cmd);
 
     /* restart */
     esp_console_cmd_t restart_cmd = {

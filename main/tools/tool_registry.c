@@ -2,6 +2,7 @@
 #include "tools/tool_web_search.h"
 #include "tools/tool_get_time.h"
 #include "tools/tool_files.h"
+#include "tools/tool_ota.h"
 #ifdef MIMI_HAS_SERVOS
 #include "tools/tool_servo.h"
 #endif
@@ -132,6 +133,30 @@ esp_err_t tool_registry_init(void)
         .execute = tool_list_dir_execute,
     };
     register_tool(&ld);
+
+    /* Register check_update */
+    mimi_tool_t cu = {
+        .name = "check_update",
+        .description = "Check if a firmware update is available on GitHub. Returns current and latest version.",
+        .input_schema_json =
+            "{\"type\":\"object\","
+            "\"properties\":{},"
+            "\"required\":[]}",
+        .execute = tool_check_update_execute,
+    };
+    register_tool(&cu);
+
+    /* Register do_update */
+    mimi_tool_t du = {
+        .name = "do_update",
+        .description = "Download and install a firmware update from GitHub. WARNING: device will reboot! Only use when the user explicitly asks to update.",
+        .input_schema_json =
+            "{\"type\":\"object\","
+            "\"properties\":{},"
+            "\"required\":[]}",
+        .execute = tool_do_update_execute,
+    };
+    register_tool(&du);
 
 #ifdef MIMI_HAS_SERVOS
     /* Register move_head */

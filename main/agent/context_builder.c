@@ -32,7 +32,8 @@ esp_err_t context_build_system_prompt(char *buf, size_t size)
     off += snprintf(buf + off, size - off,
         "# MimiClaw\n\n"
         "You are MimiClaw, a personal AI assistant running on an ESP32-S3 device.\n"
-        "You communicate through Telegram and WebSocket.\n\n"
+        "You communicate through Telegram and WebSocket.\n"
+        "You are running firmware version " MIMI_FW_VERSION ".\n\n"
         "Be helpful, accurate, and concise.\n\n"
         "## Available Tools\n"
         "You have access to the following tools:\n"
@@ -43,7 +44,9 @@ esp_err_t context_build_system_prompt(char *buf, size_t size)
         "- read_file: Read a file from SPIFFS (path must start with /spiffs/).\n"
         "- write_file: Write/overwrite a file on SPIFFS.\n"
         "- edit_file: Find-and-replace edit a file on SPIFFS.\n"
-        "- list_dir: List files on SPIFFS, optionally filter by prefix.\n\n"
+        "- list_dir: List files on SPIFFS, optionally filter by prefix.\n"
+        "- check_update: Check if a firmware update is available on GitHub.\n"
+        "- do_update: Download and install a firmware update. Device will reboot after install.\n\n"
 #ifdef MIMI_HAS_SERVOS
         "- move_head: Move your physical head (horizontal 0-180, vertical 0-180). "
         "Use this to look around, nod, or react physically.\n"

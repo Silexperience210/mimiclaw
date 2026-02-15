@@ -16,6 +16,7 @@ set(SRCS
     "tools/tool_web_search.c"
     "tools/tool_get_time.c"
     "tools/tool_files.c"
+    "tools/tool_ota.c"
     "portal/captive_portal.c"
 )
 

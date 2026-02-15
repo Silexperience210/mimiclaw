@@ -2,6 +2,7 @@
 #include "mimi_config.h"
 #include "bus/message_bus.h"
 #include "proxy/http_proxy.h"
+#include "ota/ota_manager.h"
 #ifdef MIMI_HAS_DISPLAY
 #include "power/sleep_manager.h"
 #include "display/display_ui.h"
@@ -9,6 +10,8 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
@@ -217,6 +220,41 @@ static void process_updates(const char *json_str)
         snprintf(chat_id_str, sizeof(chat_id_str), "%.0f", chat_id->valuedouble);
 
         ESP_LOGI(TAG, "Message from chat %s: %.40s...", chat_id_str, text->valuestring);
+
+        /* Commandes directes (pas envoyees a l'agent) */
+        if (strcmp(text->valuestring, "/version") == 0) {
+            char ver_msg[128];
+            snprintf(ver_msg, sizeof(ver_msg),
+                     "LilyClaw v%s (%s)", ota_get_version(), ota_get_variant());
+            telegram_send_message(chat_id_str, ver_msg);
+            continue;
+        }
+
+        if (strcmp(text->valuestring, "/update") == 0) {
+            telegram_send_message(chat_id_str, "Checking for updates...");
+            ota_update_info_t info;
+            esp_err_t ota_ret = ota_check_update(&info);
+            if (ota_ret != ESP_OK) {
+                telegram_send_message(chat_id_str, "Error checking for updates.");
+                continue;
+            }
+            if (!info.available) {
+                char msg_buf[128];
+                snprintf(msg_buf, sizeof(msg_buf),
+                         "Already on latest version v%s.", ota_get_version());
+                telegram_send_message(chat_id_str, msg_buf);
+                continue;
+            }
+            char msg_buf[128];
+            snprintf(msg_buf, sizeof(msg_buf),
+                     "Installing v%s... Device will reboot.", info.version);
+            telegram_send_message(chat_id_str, msg_buf);
+            vTaskDelay(pdMS_TO_TICKS(500));
+            ota_update_from_url(info.url);
+            /* Si on arrive ici, l'OTA a echoue */
+            telegram_send_message(chat_id_str, "OTA update failed.");
+            continue;
+        }
 
         /* Push to inbound bus */
         mimi_msg_t msg = {0};
