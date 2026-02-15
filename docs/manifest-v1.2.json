@@ -1,6 +1,6 @@
 {
   "name": "LilyClaw v1.2 (T-Display S3 + ecran)",
-  "version": "main",
+  "version": "v1.3.0",
   "new_install_prompt_erase": true,
   "builds": [
     {

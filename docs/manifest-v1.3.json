@@ -1,5 +1,5 @@
 {
-  "name": "LilyClaw v1 (sans ecran)",
+  "name": "LilyClaw v1.3 (ecran + HC-SR04 + servos)",
   "version": "v1.3.0",
   "new_install_prompt_erase": true,
   "builds": [
@@ -7,19 +7,19 @@
       "chipFamily": "ESP32-S3",
       "parts": [
         {
-          "path": "firmware/v1/bootloader.bin",
+          "path": "firmware/v1.3/bootloader.bin",
           "offset": 0
         },
         {
-          "path": "firmware/v1/partition-table.bin",
+          "path": "firmware/v1.3/partition-table.bin",
           "offset": 32768
         },
         {
-          "path": "firmware/v1/ota_data_initial.bin",
+          "path": "firmware/v1.3/ota_data_initial.bin",
           "offset": 61440
         },
         {
-          "path": "firmware/v1/mimiclaw.bin",
+          "path": "firmware/v1.3/mimiclaw.bin",
           "offset": 131072
         }
       ]
