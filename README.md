@@ -22,7 +22,7 @@ LilyClaw turns a tiny ESP32-S3 Lilygo Tdisplay S3 board into a personal AI assis
 - **Handy** — Message it from Telegram, it handles the rest
 - **Loyal** — Learns from memory, remembers across reboots
 - **Energetic** — USB power, 0.5 W, runs 24/7
-- **Lovable** — One ESP32-S3 board, $5, nothing else
+- **Lovable** — One ESP32-S3 board, $15, nothing else
 
 ## How It Works
 
