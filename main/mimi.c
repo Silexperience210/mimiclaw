@@ -31,6 +31,8 @@
 #include "hardware/servo_driver.h"
 #include "hardware/ultrasonic.h"
 #include "hardware/body_animator.h"
+#include "hardware/sonar_radar.h"
+#include "input/gesture_detect.h"
 #endif
 #endif
 
@@ -121,6 +123,8 @@ void app_main(void)
     /* v1.3 : servos + capteur ultrason + animations corporelles */
     ESP_ERROR_CHECK(servo_driver_init());
     ESP_ERROR_CHECK(ultrasonic_init());
+    ESP_ERROR_CHECK(sonar_radar_init());
+    ESP_ERROR_CHECK(gesture_detect_init());
     ESP_ERROR_CHECK(body_animator_init());
 #endif
 #endif

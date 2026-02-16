@@ -11,6 +11,8 @@ typedef enum {
     DISPLAY_PORTAL,       /* Info portail captif */
     DISPLAY_SCREENSAVER,  /* Aquarium — lobster se balade */
     DISPLAY_SLEEP,        /* Ecran eteint */
+    DISPLAY_RADAR,        /* Sonar radar en temps reel */
+    DISPLAY_ETCHASKETCH,  /* Dessin sans contact */
 } display_state_t;
 
 /* Humeur du lobster (Tamagotchi) */
@@ -33,3 +35,9 @@ void display_ui_next_screen(void);
 /* Systeme d'humeur */
 void display_ui_set_mood(lobster_mood_t mood);
 void display_ui_notify_message(void);  /* incremente compteur + banner */
+
+/* Etch-a-sketch */
+void display_ui_etch_set_cursor(int x, int y);  /* position curseur */
+void display_ui_etch_set_drawing(bool drawing);  /* main proche = dessine */
+void display_ui_etch_clear(void);                /* efface le canvas */
+void display_ui_etch_next_color(void);           /* couleur suivante */

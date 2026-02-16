@@ -36,7 +36,10 @@ if(CONFIG_MIMI_HAS_SERVOS)
         "hardware/servo_driver.c"
         "hardware/ultrasonic.c"
         "hardware/body_animator.c"
+        "hardware/sonar_radar.c"
+        "input/gesture_detect.c"
         "tools/tool_servo.c"
+        "tools/tool_perception.c"
     )
 endif()
 

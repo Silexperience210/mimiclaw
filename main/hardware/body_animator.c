@@ -1,6 +1,8 @@
 #include "body_animator.h"
 #include "hardware/servo_driver.h"
 #include "hardware/ultrasonic.h"
+#include "hardware/sonar_radar.h"
+#include "input/gesture_detect.h"
 #include "mimi_config.h"
 
 #include "freertos/FreeRTOS.h"
@@ -30,6 +32,9 @@ static int s_lock_lost_count   = 0;    /* compteur perte de lock */
 /* Historique distance pour detecter mouvement */
 static int s_dist_history[5]   = {-1, -1, -1, -1, -1};
 static int s_dist_idx          = 0;
+
+/* Dernier geste detecte (pour actions) */
+static gesture_t s_last_gesture = GESTURE_NONE;
 
 /* --- Helpers --- */
 
@@ -158,7 +163,7 @@ static void anim_presence_far(int dist)
     if (!s_scan_locked) {
         /* Balayage complet 0-180 — cherche l'objet */
         int current_h = servo_get_angle(SERVO_HEAD_H);
-        int next_h = current_h + s_scan_dir * 4; /* pas de 4° = balayage rapide */
+        int next_h = current_h + s_scan_dir * 3; /* pas de 3° = balayage fluide */
         if (next_h > 175) { next_h = 175; s_scan_dir = -1; }
         if (next_h < 5)   { next_h = 5;   s_scan_dir = 1; }
         servo_set_angle_immediate(SERVO_HEAD_H, clamp_angle(next_h));
@@ -324,10 +329,10 @@ static void anim_goodbye(void)
     for (int i = 0; i < 5; i++) {
         servo_set_angle_immediate(SERVO_CLAW_R, 175);
         servo_set_angle_immediate(SERVO_HEAD_H, 120);
-        vTaskDelay(pdMS_TO_TICKS(180));
+        vTaskDelay(pdMS_TO_TICKS(220));
         servo_set_angle_immediate(SERVO_CLAW_R, 30);
         servo_set_angle_immediate(SERVO_HEAD_H, 60);
-        vTaskDelay(pdMS_TO_TICKS(180));
+        vTaskDelay(pdMS_TO_TICKS(220));
     }
     servo_set_angle_immediate(SERVO_HEAD_H, 90);
 }
@@ -339,10 +344,10 @@ static void run_wave(void)
     for (int i = 0; i < 5; i++) {
         servo_set_angle_immediate(SERVO_CLAW_R, 175);
         servo_set_angle_immediate(SERVO_CLAW_L, 10);
-        vTaskDelay(pdMS_TO_TICKS(160));
+        vTaskDelay(pdMS_TO_TICKS(200));
         servo_set_angle_immediate(SERVO_CLAW_R, 30);
         servo_set_angle_immediate(SERVO_CLAW_L, 150);
-        vTaskDelay(pdMS_TO_TICKS(160));
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
 }
 
@@ -350,9 +355,9 @@ static void run_nod_yes(void)
 {
     for (int i = 0; i < 4; i++) {
         servo_set_angle_immediate(SERVO_HEAD_V, 130);
-        vTaskDelay(pdMS_TO_TICKS(130));
+        vTaskDelay(pdMS_TO_TICKS(170));
         servo_set_angle_immediate(SERVO_HEAD_V, 50);
-        vTaskDelay(pdMS_TO_TICKS(130));
+        vTaskDelay(pdMS_TO_TICKS(170));
     }
     servo_set_angle_immediate(SERVO_HEAD_V, 90);
 }
@@ -361,9 +366,9 @@ static void run_nod_no(void)
 {
     for (int i = 0; i < 4; i++) {
         servo_set_angle_immediate(SERVO_HEAD_H, 145);
-        vTaskDelay(pdMS_TO_TICKS(130));
+        vTaskDelay(pdMS_TO_TICKS(170));
         servo_set_angle_immediate(SERVO_HEAD_H, 35);
-        vTaskDelay(pdMS_TO_TICKS(130));
+        vTaskDelay(pdMS_TO_TICKS(170));
     }
     servo_set_angle_immediate(SERVO_HEAD_H, 90);
 }
@@ -375,11 +380,11 @@ static void run_celebrate(void)
         servo_set_angle_immediate(SERVO_CLAW_R, 180);
         servo_set_angle_immediate(SERVO_HEAD_V, 130);
         servo_set_angle_immediate(SERVO_HEAD_H, 50 + (i * 20));
-        vTaskDelay(pdMS_TO_TICKS(160));
+        vTaskDelay(pdMS_TO_TICKS(200));
         servo_set_angle_immediate(SERVO_CLAW_L, 10);
         servo_set_angle_immediate(SERVO_CLAW_R, 10);
         servo_set_angle_immediate(SERVO_HEAD_V, 50);
-        vTaskDelay(pdMS_TO_TICKS(160));
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
     servo_set_angle_immediate(SERVO_HEAD_H, 90);
     servo_set_angle_immediate(SERVO_HEAD_V, 90);
@@ -409,6 +414,162 @@ void body_animator_play(const char *name)
     }
 }
 
+/* --- Gestion mode radar : le body_animator pilote le sweep --- */
+
+static void handle_radar_mode(int dist)
+{
+    radar_mode_t rmode = sonar_radar_get_mode();
+    if (rmode == RADAR_OFF) return;
+
+    /* Si quelqu'un est tres proche, pause le radar et lock */
+    if (dist > 0 && dist < MIMI_US_NEAR_CM) {
+        /* Trop proche : on fixe la personne, pas de sweep */
+        anim_presence_near(dist);
+        /* Mais on met quand meme a jour le radar avec la position actuelle */
+        sonar_radar_update(servo_get_angle(SERVO_HEAD_H), dist);
+        return;
+    }
+
+    /* Ralentir le sweep : avance seulement 1 tick sur 2 (~2.5°/s) */
+    static bool s_radar_skip = false;
+    s_radar_skip = !s_radar_skip;
+    uint8_t next_angle;
+    if (s_radar_skip) {
+        next_angle = servo_get_angle(SERVO_HEAD_H); /* on reste en place */
+    } else {
+        next_angle = sonar_radar_next_sweep_angle();
+    }
+    servo_set_angle_immediate(SERVO_HEAD_H, next_angle);
+
+    /* Tete legèrement relevee pour le scan */
+    servo_set_angle_immediate(SERVO_HEAD_V, 95);
+
+    /* Pinces en position "scan" : semi-ouvertes */
+    uint8_t cl = breathe(60, 15, 20);
+    servo_set_angle_immediate(SERVO_CLAW_L, cl);
+    servo_set_angle_immediate(SERVO_CLAW_R, cl);
+
+    /* Enregistrer la mesure */
+    sonar_radar_update(next_angle, dist);
+
+    /* Sentinelle : verifier intrusion (le check est throttle en interne) */
+    if (rmode == RADAR_SENTINEL) {
+        sentinel_alert_t alert = sonar_radar_check_intrusion();
+        if (alert.detected) {
+            /* Reaction physique : pointer vers l'intrusion */
+            servo_set_angle_immediate(SERVO_HEAD_H, (uint8_t)alert.angle);
+            servo_set_angle_immediate(SERVO_CLAW_L, 180);
+            servo_set_angle_immediate(SERVO_CLAW_R, 180);
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
+    }
+}
+
+/* --- Gestion mode etch-a-sketch : distance → curseur Y --- */
+
+static void handle_etch_mode(int dist)
+{
+    if (s_state != DISPLAY_ETCHASKETCH) return;
+
+    /* Position X basee sur l'angle du servo (sweep lent) */
+    /* On fait un mini-sweep pour que l'utilisateur puisse bouger en X */
+    static int etch_sweep_angle = 90;
+    static int etch_sweep_dir = 1;
+    /* Le sweep avance de 1° par tick pour être controlable */
+
+    /* En fait, le curseur X est controle par l'angle du servo
+       qui suit le sweep radar si actif, sinon par un sweep dedie */
+    int head_h = servo_get_angle(SERVO_HEAD_H);
+    /* Map angle 45-135 → X 0-159 (canvas etch) */
+    int etch_x = (head_h - 45) * 159 / 90;
+    if (etch_x < 0) etch_x = 0;
+    if (etch_x > 159) etch_x = 159;
+
+    /* Position Y basee sur la distance */
+    int etch_y;
+    if (dist > 0 && dist < 100) {
+        /* Map distance 5-100cm → Y 0-84 */
+        etch_y = (dist - 5) * 84 / 95;
+        if (etch_y < 0) etch_y = 0;
+        if (etch_y > 84) etch_y = 84;
+    } else {
+        etch_y = 42; /* centre si pas de lecture */
+    }
+
+    display_ui_etch_set_cursor(etch_x, etch_y);
+    display_ui_etch_set_drawing(gesture_detect_is_hand_close());
+
+    /* Sweep tres lent du servo en mode etch (1° tous les 2 ticks) */
+    static bool etch_skip = false;
+    etch_skip = !etch_skip;
+    if (!etch_skip) {
+        etch_sweep_angle += etch_sweep_dir;
+        if (etch_sweep_angle >= 135) etch_sweep_dir = -1;
+        if (etch_sweep_angle <= 45) etch_sweep_dir = 1;
+    }
+    servo_set_angle_immediate(SERVO_HEAD_H, (uint8_t)etch_sweep_angle);
+    servo_set_angle_immediate(SERVO_HEAD_V, 90);
+}
+
+/* --- Gestion des gestes : actions declenchees --- */
+
+static void handle_gestures(void)
+{
+    gesture_t g = gesture_detect_poll();
+    if (g == GESTURE_NONE) return;
+
+    s_last_gesture = g;
+    ESP_LOGI(TAG, "Action geste: %s (state=%d)", gesture_detect_name(g), s_state);
+
+    switch (g) {
+    case GESTURE_WAVE:
+        /* Toggle radar display */
+        if (s_state == DISPLAY_RADAR) {
+            display_ui_set_state(DISPLAY_IDLE);
+            s_state = DISPLAY_IDLE;
+            sonar_radar_set_mode(RADAR_OFF);
+        } else if (s_state == DISPLAY_IDLE || s_state == DISPLAY_SCREENSAVER) {
+            sonar_radar_set_mode(RADAR_SCAN);
+            display_ui_set_state(DISPLAY_RADAR);
+            s_state = DISPLAY_RADAR;
+        } else if (s_state == DISPLAY_ETCHASKETCH) {
+            /* En mode etch, wave = changer de couleur */
+            display_ui_etch_next_color();
+        }
+        /* Reaction physique : salut */
+        run_wave();
+        break;
+
+    case GESTURE_PUSH:
+        /* En mode etch : effacer le canvas */
+        if (s_state == DISPLAY_ETCHASKETCH) {
+            display_ui_etch_clear();
+        }
+        /* Reaction physique */
+        servo_set_angle_immediate(SERVO_HEAD_V, 130);
+        vTaskDelay(pdMS_TO_TICKS(200));
+        servo_set_angle_immediate(SERVO_HEAD_V, 90);
+        break;
+
+    case GESTURE_SWIPE:
+        /* Ecran suivant (comme un bouton) */
+        display_ui_next_screen();
+        s_state = display_ui_get_state();
+        break;
+
+    case GESTURE_HOLD:
+        /* Si idle : entrer en mode etch-a-sketch */
+        if (s_state == DISPLAY_IDLE) {
+            display_ui_set_state(DISPLAY_ETCHASKETCH);
+            s_state = DISPLAY_ETCHASKETCH;
+        }
+        break;
+
+    default:
+        break;
+    }
+}
+
 /* --- Task principale --- */
 
 static void body_animator_task(void *arg)
@@ -429,6 +590,28 @@ static void body_animator_task(void *arg)
             s_presence_active = false;
         }
         s_last_distance = dist;
+
+        /* Mise a jour gesture detect (toujours actif) */
+        gesture_detect_update(dist);
+
+        /* Gestion des gestes detectes */
+        handle_gestures();
+
+        /* Mode radar : le radar prend le controle des servos */
+        if (s_state == DISPLAY_RADAR) {
+            handle_radar_mode(dist);
+            vTaskDelay(pdMS_TO_TICKS(MIMI_US_POLL_MS));
+            continue;
+        }
+
+        /* Mode etch-a-sketch */
+        if (s_state == DISPLAY_ETCHASKETCH) {
+            handle_etch_mode(dist);
+            vTaskDelay(pdMS_TO_TICKS(MIMI_US_POLL_MS));
+            continue;
+        }
+
+        /* --- Mode normal : tracking + animations --- */
 
         /* Mise a jour du tracking */
         tracking_update(dist);
@@ -516,4 +699,81 @@ void body_animator_sleep(void)
 int body_animator_get_distance(void)
 {
     return s_last_distance;
+}
+
+gesture_t body_animator_get_last_gesture(void)
+{
+    return s_last_gesture;
+}
+
+void body_animator_build_perception(char *buf, size_t size)
+{
+    size_t off = 0;
+
+    off += snprintf(buf + off, size - off, "[PERCEPTION]\n");
+
+    /* Distance et presence */
+    if (s_last_distance > 0) {
+        const char *prox;
+        if (s_last_distance < MIMI_US_NEAR_CM) prox = "tres proche";
+        else if (s_last_distance < MIMI_US_MID_CM) prox = "proche";
+        else if (s_last_distance < MIMI_US_DETECT_CM) prox = "detecte au loin";
+        else prox = "hors portee";
+
+        off += snprintf(buf + off, size - off,
+                        "Presence: %s (%dcm)", prox, s_last_distance);
+
+        /* Objet en mouvement ? */
+        if (is_object_moving()) {
+            off += snprintf(buf + off, size - off, ", en mouvement");
+        }
+        off += snprintf(buf + off, size - off, "\n");
+    } else {
+        off += snprintf(buf + off, size - off, "Presence: personne detecte\n");
+    }
+
+    /* Dernier geste */
+    if (s_last_gesture != GESTURE_NONE) {
+        off += snprintf(buf + off, size - off, "Dernier geste: %s\n",
+                        gesture_detect_name(s_last_gesture));
+    }
+
+    /* Position servos */
+    off += snprintf(buf + off, size - off, "Tete: H=%d V=%d | Pinces: L=%d R=%d\n",
+                    servo_get_angle(SERVO_HEAD_H),
+                    servo_get_angle(SERVO_HEAD_V),
+                    servo_get_angle(SERVO_CLAW_L),
+                    servo_get_angle(SERVO_CLAW_R));
+
+    /* Humeur */
+    const char *mood_str;
+    switch (s_mood) {
+    case MOOD_HAPPY:   mood_str = "happy"; break;
+    case MOOD_SLEEPY:  mood_str = "sleepy"; break;
+    case MOOD_EXCITED: mood_str = "excited"; break;
+    case MOOD_FOCUSED: mood_str = "focused"; break;
+    case MOOD_PROUD:   mood_str = "proud"; break;
+    default:           mood_str = "neutral"; break;
+    }
+    off += snprintf(buf + off, size - off, "Humeur: %s\n", mood_str);
+
+    /* Radar */
+    if (sonar_radar_get_mode() != RADAR_OFF) {
+        char radar_buf[200];
+        sonar_radar_build_perception(radar_buf, sizeof(radar_buf));
+        off += snprintf(buf + off, size - off, "%s\n", radar_buf);
+    }
+
+    /* Etat affichage */
+    const char *disp_str;
+    switch (s_state) {
+    case DISPLAY_IDLE:         disp_str = "idle"; break;
+    case DISPLAY_THINKING:     disp_str = "thinking"; break;
+    case DISPLAY_MESSAGE:      disp_str = "message"; break;
+    case DISPLAY_RADAR:        disp_str = "radar"; break;
+    case DISPLAY_ETCHASKETCH:  disp_str = "etch-a-sketch"; break;
+    case DISPLAY_SCREENSAVER:  disp_str = "screensaver"; break;
+    default:                   disp_str = "other"; break;
+    }
+    off += snprintf(buf + off, size - off, "Ecran: %s\n", disp_str);
 }

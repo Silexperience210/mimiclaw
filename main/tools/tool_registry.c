@@ -5,6 +5,7 @@
 #include "tools/tool_ota.h"
 #ifdef MIMI_HAS_SERVOS
 #include "tools/tool_servo.h"
+#include "tools/tool_perception.h"
 #endif
 
 #include <string.h>
@@ -13,7 +14,7 @@
 
 static const char *TAG = "tools";
 
-#define MAX_TOOLS 12
+#define MAX_TOOLS 16
 
 static mimi_tool_t s_tools[MAX_TOOLS];
 static int s_tool_count = 0;
@@ -208,6 +209,42 @@ esp_err_t tool_registry_init(void)
         .execute = tool_animate_execute,
     };
     register_tool(&an);
+
+    /* Register radar_scan */
+    mimi_tool_t rs = {
+        .name = "radar_scan",
+        .description = "Start or stop sonar radar scanning. Sweeps the head 45-135 degrees, builds a real-time sonar map displayed on screen. Use 'start' to begin scanning, 'stop' to return to normal mode.",
+        .input_schema_json =
+            "{\"type\":\"object\","
+            "\"properties\":{\"action\":{\"type\":\"string\",\"enum\":[\"start\",\"stop\"],\"description\":\"start or stop the radar\"}},"
+            "\"required\":[\"action\"]}",
+        .execute = tool_radar_scan_execute,
+    };
+    register_tool(&rs);
+
+    /* Register sentinel_mode */
+    mimi_tool_t sm = {
+        .name = "sentinel_mode",
+        .description = "Arm or disarm sentinel/guard mode. When armed, takes a baseline room scan and monitors for changes. Sends Telegram alerts if an intrusion is detected. Use when user asks to guard/watch the room.",
+        .input_schema_json =
+            "{\"type\":\"object\","
+            "\"properties\":{\"action\":{\"type\":\"string\",\"enum\":[\"arm\",\"disarm\"],\"description\":\"arm or disarm sentinel\"}},"
+            "\"required\":[\"action\"]}",
+        .execute = tool_sentinel_mode_execute,
+    };
+    register_tool(&sm);
+
+    /* Register get_room_scan */
+    mimi_tool_t gr = {
+        .name = "get_room_scan",
+        .description = "Get a detailed report of the current radar scan data. Shows distances at each angle. Use to understand the room layout around you.",
+        .input_schema_json =
+            "{\"type\":\"object\","
+            "\"properties\":{},"
+            "\"required\":[]}",
+        .execute = tool_get_room_scan_execute,
+    };
+    register_tool(&gr);
 #endif
 
     build_tools_json();

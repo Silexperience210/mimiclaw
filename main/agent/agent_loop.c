@@ -11,6 +11,7 @@
 #endif
 #ifdef MIMI_HAS_SERVOS
 #include "hardware/body_animator.h"
+#include "tools/tool_perception.h"
 #endif
 
 #include <string.h>
@@ -108,6 +109,8 @@ static void agent_loop_task(void *arg)
 
         ESP_LOGI(TAG, "Processing message from %s:%s", msg.channel, msg.chat_id);
 #ifdef MIMI_HAS_SERVOS
+        /* Enregistrer le canal pour les alertes sentinelle */
+        tool_perception_set_chat(msg.channel, msg.chat_id);
         /* Reaction corporelle : surprise a la reception du message */
         body_animator_set_mood(MOOD_EXCITED);
         vTaskDelay(pdMS_TO_TICKS(500));

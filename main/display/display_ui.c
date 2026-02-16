@@ -3,9 +3,13 @@
 #include "lobster_sprite.h"
 #include "mimi_config.h"
 #include "ota/ota_manager.h"
+#ifdef MIMI_HAS_SERVOS
+#include "hardware/sonar_radar.h"
+#endif
 
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
@@ -167,6 +171,38 @@ static bubble_t s_bubbles[MIMI_DISP_BUBBLE_COUNT];
 
 /* Typewriter */
 static int s_typewriter_pos = 0;
+
+/* Etch-a-sketch */
+#define ETCH_W  160
+#define ETCH_H  85
+static uint8_t *s_etch_canvas = NULL;  /* PSRAM, 160x85 pixels, 0=vide */
+static int s_etch_cursor_x = ETCH_W / 2;
+static int s_etch_cursor_y = ETCH_H / 2;
+static bool s_etch_drawing = false;
+static uint8_t s_etch_color_idx = 1;   /* index couleur courante 1-7 */
+
+/* Palette etch-a-sketch (RGB565) */
+static const uint16_t s_etch_palette[] = {
+    0x0000,  /* 0: vide (noir) */
+    0xFFFF,  /* 1: blanc */
+    0xF800,  /* 2: rouge */
+    0x07E0,  /* 3: vert */
+    0x001F,  /* 4: bleu */
+    0xFFE0,  /* 5: jaune */
+    0x07FF,  /* 6: cyan */
+    0xF81F,  /* 7: magenta */
+};
+#define ETCH_NUM_COLORS 7
+
+/* Couleurs radar */
+#define COL_RADAR_BG     0x0000  /* noir */
+#define COL_RADAR_GRID   0x1082  /* gris tres fonce */
+#define COL_RADAR_SWEEP  0x07E0  /* vert vif */
+#define COL_RADAR_POINT  0xF800  /* rouge */
+#define COL_RADAR_FADE1  0x8800  /* rouge sombre */
+#define COL_RADAR_FADE2  0x4000  /* rouge tres sombre */
+#define COL_RADAR_TEXT   0x07E0  /* vert */
+#define COL_SENTINEL_ALERT 0xFBE0 /* orange vif */
 
 /* ---- Buffer PSRAM double ---- */
 static uint16_t *s_framebuf = NULL;  /* framebuffer complet en PSRAM */
@@ -651,6 +687,215 @@ static void draw_screensaver(void)
     fb_draw_sprite(s_lobster_x, ly, frame, LOBSTER_W, LOBSTER_H, sprite_scale);
 }
 
+/* ---- Radar sonar ---- */
+#ifdef MIMI_HAS_SERVOS
+
+/* Dessine une ligne du centre vers (x1,y1) */
+static void fb_draw_line(int x0, int y0, int x1, int y1, uint16_t color)
+{
+    int dx = abs(x1 - x0);
+    int dy = abs(y1 - y0);
+    int sx = (x0 < x1) ? 1 : -1;
+    int sy = (y0 < y1) ? 1 : -1;
+    int err = dx - dy;
+
+    for (int i = 0; i < 400; i++) { /* securite anti boucle infinie */
+        fb_pixel(x0, y0, color);
+        if (x0 == x1 && y0 == y1) break;
+        int e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; x0 += sx; }
+        if (e2 < dx)  { err += dx; y0 += sy; }
+    }
+}
+
+static void draw_radar(void)
+{
+    fb_clear(COL_RADAR_BG);
+
+    /* Centre du radar : bas-centre de l'ecran */
+    int cx = MIMI_DISP_WIDTH / 2;   /* 160 */
+    int cy = MIMI_DISP_HEIGHT - 5;  /* 165 */
+
+    /* Echelle : max distance → max rayon pixel */
+    float scale = (float)(MIMI_DISP_HEIGHT - 20) / RADAR_MAX_DIST_CM; /* ~0.5 px/cm */
+
+    /* Arcs de distance (50cm, 150cm, 300cm) */
+    int dist_rings[] = {50, 150, 300};
+    for (int r = 0; r < 3; r++) {
+        int radius = (int)(dist_rings[r] * scale);
+        /* Dessine l'arc de RADAR_SWEEP_MIN a RADAR_SWEEP_MAX */
+        for (int a = RADAR_SWEEP_MIN; a <= RADAR_SWEEP_MAX; a++) {
+            float rad = (float)a * 3.14159f / 180.0f;
+            int px = cx + (int)(radius * cosf(rad));
+            int py = cy - (int)(radius * sinf(rad));
+            fb_pixel(px, py, COL_RADAR_GRID);
+        }
+        /* Label distance */
+        char dist_label[8];
+        snprintf(dist_label, sizeof(dist_label), "%dm", dist_rings[r] / 100);
+        fb_draw_string(cx + radius - 10, cy - 8, dist_label, COL_RADAR_GRID, 1);
+    }
+
+    /* Lignes radiales tous les 15° */
+    for (int a = RADAR_SWEEP_MIN; a <= RADAR_SWEEP_MAX; a += 15) {
+        float rad = (float)a * 3.14159f / 180.0f;
+        int max_r = (int)(RADAR_MAX_DIST_CM * scale);
+        int ex = cx + (int)(max_r * cosf(rad));
+        int ey = cy - (int)(max_r * sinf(rad));
+        fb_draw_line(cx, cy, ex, ey, COL_RADAR_GRID);
+    }
+
+    /* Points detectes — sweeps historiques (afterglow) */
+    for (int sweep = RADAR_NUM_SWEEPS - 1; sweep >= 0; sweep--) {
+        const radar_point_t *pts = sonar_radar_get_sweep(sweep);
+        if (!pts) continue;
+
+        uint16_t color;
+        int dot_size;
+        switch (sweep) {
+        case 0:  color = COL_RADAR_POINT; dot_size = 3; break;
+        case 1:  color = COL_RADAR_FADE1; dot_size = 2; break;
+        default: color = COL_RADAR_FADE2; dot_size = 1; break;
+        }
+
+        for (int i = 0; i < RADAR_POINTS; i++) {
+            int d = pts[i].distance;
+            if (d <= 0 || d > RADAR_MAX_DIST_CM) continue;
+
+            uint8_t angle = sonar_radar_index_to_angle(i);
+            float rad = (float)angle * 3.14159f / 180.0f;
+            int r = (int)(d * scale);
+            int px = cx + (int)(r * cosf(rad));
+            int py = cy - (int)(r * sinf(rad));
+
+            /* Point avec taille variable */
+            for (int dy = -dot_size; dy <= dot_size; dy++) {
+                for (int dx = -dot_size; dx <= dot_size; dx++) {
+                    if (dx * dx + dy * dy <= dot_size * dot_size) {
+                        fb_pixel(px + dx, py + dy, color);
+                    }
+                }
+            }
+        }
+    }
+
+    /* Ligne de balayage (sweep line) */
+    int cur_idx = sonar_radar_get_current_index();
+    uint8_t cur_angle = sonar_radar_index_to_angle(cur_idx);
+    float sweep_rad = (float)cur_angle * 3.14159f / 180.0f;
+    int sweep_len = (int)(RADAR_MAX_DIST_CM * scale);
+    int sweep_ex = cx + (int)(sweep_len * cosf(sweep_rad));
+    int sweep_ey = cy - (int)(sweep_len * sinf(sweep_rad));
+    fb_draw_line(cx, cy, sweep_ex, sweep_ey, COL_RADAR_SWEEP);
+
+    /* Point central (le lobster) */
+    for (int dy = -2; dy <= 2; dy++) {
+        for (int dx = -2; dx <= 2; dx++) {
+            fb_pixel(cx + dx, cy + dy, COL_RADAR_SWEEP);
+        }
+    }
+
+    /* Texte HUD */
+    radar_mode_t mode = sonar_radar_get_mode();
+    if (mode == RADAR_SENTINEL) {
+        fb_draw_string(2, 2, "SENTINEL", COL_SENTINEL_ALERT, 1);
+
+        /* Clignotement si intrusion */
+        sentinel_alert_t alert = sonar_radar_check_intrusion();
+        if (alert.detected && (s_frame_count / 3) % 2) {
+            fb_draw_string(60, 2, "ALERTE!", COL_SENTINEL_ALERT, 2);
+        }
+    } else {
+        fb_draw_string(2, 2, "SONAR", COL_RADAR_TEXT, 1);
+    }
+
+    /* Angle courant */
+    char angle_str[16];
+    snprintf(angle_str, sizeof(angle_str), "%d deg", cur_angle);
+    fb_draw_string(MIMI_DISP_WIDTH - 50, 2, angle_str, COL_RADAR_TEXT, 1);
+
+    /* Distance la plus proche */
+    const radar_point_t *current = sonar_radar_get_sweep(0);
+    if (current) {
+        int closest = 9999;
+        for (int i = 0; i < RADAR_POINTS; i++) {
+            if (current[i].distance > 0 && current[i].distance < closest) {
+                closest = current[i].distance;
+            }
+        }
+        if (closest < 9999) {
+            char dist_str[24];
+            snprintf(dist_str, sizeof(dist_str), "Near:%dcm", closest);
+            fb_draw_string(2, MIMI_DISP_HEIGHT - 10, dist_str, COL_RADAR_TEXT, 1);
+        }
+    }
+}
+#endif /* MIMI_HAS_SERVOS */
+
+/* ---- Etch-a-sketch sans contact ---- */
+
+static void draw_etchasketch(void)
+{
+    if (!s_etch_canvas) return;
+
+    fb_clear(COL_BG);
+
+    /* Dessiner le canvas a scale 2x */
+    for (int y = 0; y < ETCH_H; y++) {
+        for (int x = 0; x < ETCH_W; x++) {
+            uint8_t c = s_etch_canvas[y * ETCH_W + x];
+            if (c > 0 && c <= ETCH_NUM_COLORS) {
+                uint16_t color = s_etch_palette[c];
+                /* Scale 2x */
+                fb_pixel(x * 2,     y * 2,     color);
+                fb_pixel(x * 2 + 1, y * 2,     color);
+                fb_pixel(x * 2,     y * 2 + 1, color);
+                fb_pixel(x * 2 + 1, y * 2 + 1, color);
+            }
+        }
+    }
+
+    /* Curseur (clignotant) */
+    if ((s_frame_count / 3) % 2) {
+        uint16_t cur_col = s_etch_drawing ? s_etch_palette[s_etch_color_idx] : COL_DIM;
+        int cx = s_etch_cursor_x * 2;
+        int cy = s_etch_cursor_y * 2;
+        /* Croix */
+        for (int d = -3; d <= 3; d++) {
+            fb_pixel(cx + d, cy, cur_col);
+            fb_pixel(cx, cy + d, cur_col);
+        }
+    }
+
+    /* Si on dessine, marquer le pixel */
+    if (s_etch_drawing) {
+        int ex = s_etch_cursor_x;
+        int ey = s_etch_cursor_y;
+        if (ex >= 0 && ex < ETCH_W && ey >= 0 && ey < ETCH_H) {
+            s_etch_canvas[ey * ETCH_W + ex] = s_etch_color_idx;
+            /* Epaisseur 2 pour trait plus visible */
+            if (ex + 1 < ETCH_W) s_etch_canvas[ey * ETCH_W + ex + 1] = s_etch_color_idx;
+            if (ey + 1 < ETCH_H) s_etch_canvas[(ey + 1) * ETCH_W + ex] = s_etch_color_idx;
+        }
+    }
+
+    /* HUD en bas */
+    fb_fill_rect(0, MIMI_DISP_HEIGHT - 12, MIMI_DISP_WIDTH, 12, 0x1082);
+    fb_draw_string(2, MIMI_DISP_HEIGHT - 10, "ETCH", COL_ACCENT, 1);
+
+    /* Indicateur couleur courante */
+    fb_fill_rect(40, MIMI_DISP_HEIGHT - 10, 8, 8, s_etch_palette[s_etch_color_idx]);
+
+    /* Instructions */
+    const char *hint = s_etch_drawing ? "DRAWING" : "MOVE";
+    fb_draw_string(55, MIMI_DISP_HEIGHT - 10, hint, COL_DIM, 1);
+
+    /* Coordonnees */
+    char pos[16];
+    snprintf(pos, sizeof(pos), "%d,%d", s_etch_cursor_x, s_etch_cursor_y);
+    fb_draw_string(MIMI_DISP_WIDTH - 40, MIMI_DISP_HEIGHT - 10, pos, COL_DIM, 1);
+}
+
 /* ---- Notification banner (slide depuis le bas) ---- */
 
 static void draw_banner(void)
@@ -813,6 +1058,12 @@ static void display_task(void *arg)
     bubbles_init();
     s_last_activity_us = esp_timer_get_time();
 
+    /* Alloc canvas etch-a-sketch en PSRAM */
+    s_etch_canvas = heap_caps_calloc(1, ETCH_W * ETCH_H, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (s_etch_canvas) {
+        ESP_LOGI(TAG, "Etch-a-sketch canvas OK (%d bytes)", ETCH_W * ETCH_H);
+    }
+
     /* Boot animation cinematique */
     draw_boot_animation();
 
@@ -867,6 +1118,14 @@ static void display_task(void *arg)
         case DISPLAY_SCREENSAVER:
             draw_screensaver();
             break;
+#ifdef MIMI_HAS_SERVOS
+        case DISPLAY_RADAR:
+            draw_radar();
+            break;
+#endif
+        case DISPLAY_ETCHASKETCH:
+            draw_etchasketch();
+            break;
         case DISPLAY_SLEEP:
             vTaskDelay(pdMS_TO_TICKS(1000));
             s_frame_count++;
@@ -881,10 +1140,12 @@ static void display_task(void *arg)
 
         /* FPS adaptatif */
         int fps = MIMI_DISP_FPS_IDLE;
-        if (state == DISPLAY_THINKING || s_banner_active)
+        if (state == DISPLAY_THINKING || s_banner_active || state == DISPLAY_RADAR)
             fps = MIMI_DISP_FPS_ACTIVE;
         else if (state == DISPLAY_SCREENSAVER)
             fps = MIMI_DISP_FPS_SCREENSAVER;
+        else if (state == DISPLAY_ETCHASKETCH)
+            fps = MIMI_DISP_FPS_ACTIVE;
 
         vTaskDelay(pdMS_TO_TICKS(1000 / fps));
     }
@@ -912,9 +1173,11 @@ void display_ui_set_state(display_state_t state)
     if (s_state != state) {
         display_state_t old_state = s_state;
 
-        /* Transition wipe sauf vers/depuis sleep */
+        /* Transition wipe sauf vers/depuis sleep, radar, etch */
         if (state != DISPLAY_SLEEP && old_state != DISPLAY_SLEEP
-            && state != DISPLAY_SCREENSAVER && old_state != DISPLAY_SCREENSAVER) {
+            && state != DISPLAY_SCREENSAVER && old_state != DISPLAY_SCREENSAVER
+            && state != DISPLAY_RADAR && old_state != DISPLAY_RADAR
+            && state != DISPLAY_ETCHASKETCH && old_state != DISPLAY_ETCHASKETCH) {
             s_transitioning = true;
             s_transition_frame = 0;
             s_transition_target = state;
@@ -968,9 +1231,11 @@ void display_ui_next_screen(void)
 {
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     switch (s_state) {
-    case DISPLAY_IDLE:        s_state = DISPLAY_MESSAGE; break;
-    case DISPLAY_MESSAGE:     s_state = DISPLAY_IDLE;    break;
-    case DISPLAY_SCREENSAVER: s_state = DISPLAY_IDLE;    break;
+    case DISPLAY_IDLE:        s_state = DISPLAY_MESSAGE;     break;
+    case DISPLAY_MESSAGE:     s_state = DISPLAY_IDLE;        break;
+    case DISPLAY_SCREENSAVER: s_state = DISPLAY_IDLE;        break;
+    case DISPLAY_RADAR:       s_state = DISPLAY_IDLE;        break;
+    case DISPLAY_ETCHASKETCH: s_state = DISPLAY_IDLE;        break;
     default: break;
     }
     s_frame_count = 0;
@@ -1005,4 +1270,34 @@ void display_ui_notify_message(void)
         s_state = DISPLAY_IDLE;
     }
     xSemaphoreGive(s_mutex);
+}
+
+/* ---- Etch-a-sketch API ---- */
+
+void display_ui_etch_set_cursor(int x, int y)
+{
+    if (x < 0) x = 0;
+    if (x >= ETCH_W) x = ETCH_W - 1;
+    if (y < 0) y = 0;
+    if (y >= ETCH_H) y = ETCH_H - 1;
+    s_etch_cursor_x = x;
+    s_etch_cursor_y = y;
+}
+
+void display_ui_etch_set_drawing(bool drawing)
+{
+    s_etch_drawing = drawing;
+}
+
+void display_ui_etch_clear(void)
+{
+    if (s_etch_canvas) {
+        memset(s_etch_canvas, 0, ETCH_W * ETCH_H);
+    }
+}
+
+void display_ui_etch_next_color(void)
+{
+    s_etch_color_idx++;
+    if (s_etch_color_idx > ETCH_NUM_COLORS) s_etch_color_idx = 1;
 }

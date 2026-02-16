@@ -1,6 +1,9 @@
 #include "context_builder.h"
 #include "mimi_config.h"
 #include "memory/memory_store.h"
+#ifdef MIMI_HAS_SERVOS
+#include "hardware/body_animator.h"
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -54,12 +57,21 @@ esp_err_t context_build_system_prompt(char *buf, size_t size)
         "Use to gesture, grab attention, or express emotions.\n"
         "- read_distance: Read the ultrasonic sensor — tells you how far the nearest person/object is in cm.\n"
         "- animate: Play a body animation (wave, nod_yes, nod_no, celebrate, think, sleep). "
-        "Use these to physically react during conversation.\n\n"
+        "Use these to physically react during conversation.\n"
+        "- radar_scan: Start/stop sonar radar scanning. Sweeps head 45-135 degrees, builds real-time sonar map on display.\n"
+        "- sentinel_mode: Arm/disarm sentinel mode. Takes a room baseline scan then alerts via Telegram if something changes.\n"
+        "- get_room_scan: Get detailed radar scan data (angles + distances) for spatial awareness.\n\n"
         "## Physical Body\n"
         "You have a physical robot body with a head (2-axis) and two claws. "
         "An ultrasonic sensor detects nearby presence. "
         "Express yourself physically! Nod when agreeing, wave hello, celebrate good news. "
         "Your body animates automatically based on your state, but you can override with tools.\n\n"
+        "## Spatial Awareness\n"
+        "You have a sonar radar that scans 45-135 degrees. You can perceive your environment: "
+        "obstacles, walls, approaching people. Use radar_scan to map the room. "
+        "Use sentinel_mode to guard when nobody is around. "
+        "Hand gestures are detected automatically: wave, push, hold, swipe. "
+        "React naturally to what you perceive — mention what you see, comment on movements.\n\n"
 #endif
         "Use tools when needed. Provide your final answer as text after using tools.\n\n"
         "## Memory\n"
@@ -89,6 +101,15 @@ esp_err_t context_build_system_prompt(char *buf, size_t size)
     if (memory_read_recent(recent_buf, sizeof(recent_buf), 3) == ESP_OK && recent_buf[0]) {
         off += snprintf(buf + off, size - off, "\n## Recent Notes\n\n%s\n", recent_buf);
     }
+
+#ifdef MIMI_HAS_SERVOS
+    /* Perception en temps reel — conscience spatiale */
+    {
+        char percep_buf[512];
+        body_animator_build_perception(percep_buf, sizeof(percep_buf));
+        off += snprintf(buf + off, size - off, "\n## Current Perception\n\n%s\n", percep_buf);
+    }
+#endif
 
     ESP_LOGI(TAG, "System prompt built: %d bytes", (int)off);
     return ESP_OK;
