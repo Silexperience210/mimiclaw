@@ -141,6 +141,7 @@ LilyClaw stores everything as plain text files you can read and edit:
 | **v1.0** | Any ESP32-S3 (16MB flash, 8MB PSRAM) | Telegram + AI + tools |
 | **v1.2** | LilyGo T-Display S3 | + Ecran + boutons + deep sleep |
 | **v1.3** | T-Display S3 + HC-SR04 + 4 servos | + Corps physique animé |
+| **v1.4** | Same as v1.3 (no extra hardware) | + Sonar radar + gestures + spatial AI + sentinel + etch-a-sketch |
 
 ### v1.3 Wiring — HC-SR04 + Servos
 
@@ -196,6 +197,92 @@ Or use the [Web Flasher](https://silexperience210.github.io/lilyclaw/) and selec
 - Au boot, la tête se centre (90°) et les pinces se ferment (0°).
 - L'IA peut contrôler les servos via Telegram avec les tools `move_head`, `move_claw`, `animate`, `read_distance`.
 
+### v1.4 — Sonar Radar, Gesture Recognition & Spatial AI
+
+**No extra hardware needed** — v1.4 is a pure software upgrade on the same v1.3 board. It turns LilyClaw into a spatially-aware AI that perceives, reacts to, and comments on its physical environment.
+
+#### Sonar Radar
+
+The head servo sweeps 45°-135° while the ultrasonic sensor measures distances, building a **real-time sonar map** displayed on screen — like a submarine radar.
+
+```
+        90°
+         |
+   135°  |  45°
+     \   |   /
+      \  |  /     ← Green sweep line
+       \ | /
+        \|/       ← Red dots = detected obstacles
+     [LOBSTER]    ← LilyClaw at center
+```
+
+- Polar display with distance arcs (50cm, 150cm, 300cm)
+- Afterglow effect: old detections fade from red to dark
+- Slow smooth sweep at 2.5°/sec for quiet operation
+- Pauses and locks on target when someone gets close
+
+#### Gesture Recognition
+
+LilyClaw detects hand gestures from ultrasonic distance patterns — **no camera, no microphone, no extra sensor**:
+
+| Gesture | How | Action |
+|---------|-----|--------|
+| **Wave** | Agitate hand rapidly | Toggle radar display |
+| **Swipe** | Pass hand quickly in front | Next screen |
+| **Hold** | Keep hand close and still (< 30cm) | Enter etch-a-sketch mode |
+| **Push** | Move hand close then pull back | Clear canvas / physical reaction |
+
+#### Spatial AI Awareness
+
+LilyClaw's AI becomes **spatially conscious**. Perception data is automatically injected into Claude's context:
+
+```
+[PERCEPTION]
+Presence: tres proche (28cm), en mouvement
+Dernier geste: wave
+Tete: H=70 V=95 | Pinces: L=60 R=60
+Humeur: excited
+Radar(scan): droite@82cm(50), devant@45cm(90), gauche@120cm(130)
+Ecran: radar
+```
+
+The AI uses this to react naturally: *"Oh, I see you approaching from the right! Let me turn to look at you..."* — and physically moves its head and claws to match.
+
+#### Sentinel Mode
+
+Turn LilyClaw into a guard:
+
+1. AI takes a **baseline scan** of the room
+2. Continuously compares new scans to the baseline
+3. If something changes (new object, person enters) → **alerts via Telegram**
+4. Physically points at the intrusion with head + claws
+5. Displays flashing "ALERTE!" on the radar screen
+
+Tell LilyClaw *"Surveille la pièce"* on Telegram and it arms itself.
+
+#### Etch-a-Sketch (Touchless Drawing)
+
+Draw on the screen without touching anything:
+
+- **Hand distance** controls the Y axis (close = top, far = bottom)
+- **Servo sweep angle** controls the X axis
+- **Hand close (< 30cm)** = drawing, hand far = just moving cursor
+- **Wave** gesture = change color (7 colors: white, red, green, blue, yellow, cyan, magenta)
+- **Push** gesture = clear canvas
+
+The canvas is rendered at 160x85 in PSRAM, displayed at 2x scale.
+
+#### v1.4 Memory Impact
+
+All v1.4 features combined use **less than 1 KB of additional RAM**:
+
+| Feature | RAM |
+|---------|-----|
+| Sonar radar (3 sweep buffers + baseline) | ~600 bytes |
+| Gesture detection (20-sample buffer) | ~100 bytes |
+| Etch-a-sketch canvas | 13.6 KB (PSRAM) |
+| **Total internal RAM** | **~700 bytes** |
+
 ## Tools
 
 LilyClaw uses Anthropic's tool use protocol — Claude can call tools during a conversation and loop until the task is done (ReAct pattern).
@@ -208,6 +295,9 @@ LilyClaw uses Anthropic's tool use protocol — Claude can call tools during a c
 | `move_claw` | Open/close claws (left/right/both, 0-180°) *(v1.3)* |
 | `read_distance` | Read ultrasonic distance sensor (cm) *(v1.3)* |
 | `animate` | Play body animation: wave, nod_yes, nod_no, celebrate, think, sleep *(v1.3)* |
+| `radar_scan` | Start/stop sonar radar — sweeps head 45-135°, builds real-time sonar map *(v1.4)* |
+| `sentinel_mode` | Arm/disarm room guard — baseline scan + Telegram intrusion alerts *(v1.4)* |
+| `get_room_scan` | Get detailed radar data (angles + distances) for spatial awareness *(v1.4)* |
 
 To enable web search, set a [Brave Search API key](https://brave.com/search/api/) via `MIMI_SECRET_SEARCH_KEY` in `mimi_secrets.h`.
 
