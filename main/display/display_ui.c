@@ -172,6 +172,7 @@ static bubble_t s_bubbles[MIMI_DISP_BUBBLE_COUNT];
 /* Typewriter */
 static int s_typewriter_pos = 0;
 
+#ifdef MIMI_HAS_SERVOS
 /* Etch-a-sketch */
 #define ETCH_W  160
 #define ETCH_H  85
@@ -203,6 +204,7 @@ static const uint16_t s_etch_palette[] = {
 #define COL_RADAR_FADE2  0x4000  /* rouge tres sombre */
 #define COL_RADAR_TEXT   0x07E0  /* vert */
 #define COL_SENTINEL_ALERT 0xFBE0 /* orange vif */
+#endif /* MIMI_HAS_SERVOS */
 
 /* ---- Buffer PSRAM double ---- */
 static uint16_t *s_framebuf = NULL;  /* framebuffer complet en PSRAM */
@@ -833,6 +835,7 @@ static void draw_radar(void)
 #endif /* MIMI_HAS_SERVOS */
 
 /* ---- Etch-a-sketch sans contact ---- */
+#ifdef MIMI_HAS_SERVOS
 
 static void draw_etchasketch(void)
 {
@@ -895,6 +898,7 @@ static void draw_etchasketch(void)
     snprintf(pos, sizeof(pos), "%d,%d", s_etch_cursor_x, s_etch_cursor_y);
     fb_draw_string(MIMI_DISP_WIDTH - 40, MIMI_DISP_HEIGHT - 10, pos, COL_DIM, 1);
 }
+#endif /* MIMI_HAS_SERVOS */
 
 /* ---- Notification banner (slide depuis le bas) ---- */
 
@@ -1058,11 +1062,13 @@ static void display_task(void *arg)
     bubbles_init();
     s_last_activity_us = esp_timer_get_time();
 
+#ifdef MIMI_HAS_SERVOS
     /* Alloc canvas etch-a-sketch en PSRAM */
     s_etch_canvas = heap_caps_calloc(1, ETCH_W * ETCH_H, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (s_etch_canvas) {
         ESP_LOGI(TAG, "Etch-a-sketch canvas OK (%d bytes)", ETCH_W * ETCH_H);
     }
+#endif
 
     /* Boot animation cinematique */
     draw_boot_animation();
@@ -1122,10 +1128,10 @@ static void display_task(void *arg)
         case DISPLAY_RADAR:
             draw_radar();
             break;
-#endif
         case DISPLAY_ETCHASKETCH:
             draw_etchasketch();
             break;
+#endif
         case DISPLAY_SLEEP:
             vTaskDelay(pdMS_TO_TICKS(1000));
             s_frame_count++;
@@ -1273,6 +1279,7 @@ void display_ui_notify_message(void)
 }
 
 /* ---- Etch-a-sketch API ---- */
+#ifdef MIMI_HAS_SERVOS
 
 void display_ui_etch_set_cursor(int x, int y)
 {
@@ -1301,3 +1308,4 @@ void display_ui_etch_next_color(void)
     s_etch_color_idx++;
     if (s_etch_color_idx > ETCH_NUM_COLORS) s_etch_color_idx = 1;
 }
+#endif /* MIMI_HAS_SERVOS */

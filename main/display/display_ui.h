@@ -36,8 +36,10 @@ void display_ui_next_screen(void);
 void display_ui_set_mood(lobster_mood_t mood);
 void display_ui_notify_message(void);  /* incremente compteur + banner */
 
-/* Etch-a-sketch */
+/* Etch-a-sketch (v1.3+ seulement) */
+#ifdef MIMI_HAS_SERVOS
 void display_ui_etch_set_cursor(int x, int y);  /* position curseur */
 void display_ui_etch_set_drawing(bool drawing);  /* main proche = dessine */
 void display_ui_etch_clear(void);                /* efface le canvas */
 void display_ui_etch_next_color(void);           /* couleur suivante */
+#endif
