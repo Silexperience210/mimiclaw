@@ -64,42 +64,47 @@
       position: relative;
       display: inline-block;
       margin-bottom: 20px;
-      filter: drop-shadow(0 0 40px rgba(255,69,0,0.5)) drop-shadow(0 0 80px rgba(255,140,50,0.3));
-      animation: pulse-glow 4s ease-in-out infinite;
+      perspective: 800px;
     }
 
-    .ascii-lobster {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      line-height: 1.2;
-      white-space: pre;
-      color: #e85d3a;
-      text-shadow: 0 0 20px rgba(232,93,58,0.5), 0 0 40px rgba(255,140,50,0.3);
+    /* Homard 3D flottant */
+    .lobster-3d {
+      font-size: 130px;
       display: inline-block;
-      margin: 0;
-    }
-    .ascii-lobster .claw-l, .ascii-lobster .claw-r {
-      color: #ff6b35;
-      text-shadow: 0 0 15px rgba(255,107,53,0.7);
-    }
-    .ascii-lobster .head {
-      color: #ff4500;
-      text-shadow: 0 0 20px rgba(255,69,0,0.6);
-    }
-    .ascii-lobster .body {
-      color: #e85d3a;
-    }
-    .ascii-lobster .tail {
-      color: #d4412a;
-    }
-    .ascii-lobster .legs {
-      color: #ff8c32;
-      text-shadow: 0 0 12px rgba(255,140,50,0.5);
+      cursor: pointer;
+      user-select: none;
+      transform-origin: center center;
+      animation: lobster-float 4s ease-in-out infinite;
+      filter:
+        drop-shadow(-8px 14px 0 rgba(160,20,0,0.55))
+        drop-shadow(-4px 7px 0 rgba(210,50,0,0.35))
+        drop-shadow(0 30px 50px rgba(255,69,0,0.55))
+        drop-shadow(0 0 80px rgba(255,140,50,0.4));
     }
 
-    @keyframes pulse-glow {
-      0%,100% { filter: drop-shadow(0 0 40px rgba(255,69,0,0.5)) drop-shadow(0 0 80px rgba(255,140,50,0.3)); }
-      50% { filter: drop-shadow(0 0 60px rgba(255,69,0,0.7)) drop-shadow(0 0 100px rgba(255,140,50,0.5)); }
+    @keyframes lobster-float {
+      0%, 100% {
+        transform: translateY(0px) rotateY(-18deg) rotateX(8deg) scale(1);
+        filter:
+          drop-shadow(-10px 16px 0 rgba(160,20,0,0.55))
+          drop-shadow(-5px 8px 0 rgba(210,50,0,0.35))
+          drop-shadow(0 28px 45px rgba(255,69,0,0.5))
+          drop-shadow(0 0 70px rgba(255,140,50,0.35));
+      }
+      50% {
+        transform: translateY(-20px) rotateY(18deg) rotateX(-8deg) scale(1.06);
+        filter:
+          drop-shadow(10px 16px 0 rgba(160,20,0,0.55))
+          drop-shadow(5px 8px 0 rgba(210,50,0,0.35))
+          drop-shadow(0 42px 65px rgba(255,69,0,0.65))
+          drop-shadow(0 0 110px rgba(255,140,50,0.55));
+      }
+    }
+
+    @keyframes lobster-spin-once {
+      0%   { transform: rotateY(0deg) scale(1); }
+      40%  { transform: rotateY(200deg) scale(1.25); }
+      100% { transform: rotateY(360deg) scale(1); }
     }
 
     .title {
@@ -412,8 +417,8 @@
       .card { padding: 24px 18px; }
       .card-hero { padding: 36px 18px; }
       .title { font-size: 32px; }
-      .ascii-lobster { font-size: 7px; }
-      esp-web-install-button button { padding: 16px 40px; font-size: 15px; }
+      .lobster-3d { font-size: 90px; }
+esp-web-install-button button { padding: 16px 40px; font-size: 15px; }
     }
   </style>
 </head>
@@ -426,23 +431,7 @@
 <div class="container">
 
   <div class="header">
-    <div class="logo-glow"><pre class="ascii-lobster">
-  <span class="claw-l">\\\\</span>         <span class="claw-r">////</span>
-   <span class="claw-l">\\\\</span>       <span class="claw-r">////</span>
-    <span class="claw-l">&gt;&gt;)</span>     <span class="claw-r">(&lt;&lt;</span>
-     <span class="claw-l">))</span>  <span class="head">___</span>  <span class="claw-r">((</span>
-      <span class="claw-l">)</span> <span class="head">/o.o\</span> <span class="claw-r">(</span>
-        <span class="head">| _ |</span>
-        <span class="body">/| | |\</span>
-       <span class="body">/_|_|_|_\</span>
-       <span class="body">| | | | |</span>
-       <span class="body">| | | | |</span>
-      <span class="tail">/  | | |  \</span>
-     <span class="tail">/__ | | | __\</span>
-        <span class="tail">|_| |_|</span>
-       <span class="legs">// | | \\</span>
-      <span class="legs">//  | |  \\</span>
-     <span class="legs">&lt;/  &lt;_&gt;  \&gt;</span></pre></div>
+    <div class="logo-glow"><div class="lobster-3d" id="lobster3d" title="Click me!">🦞</div></div>
     <div class="title"><span class="title-grad">LilyClaw</span></div>
     <div class="subtitle">Web Flasher</div>
     <div style="margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent2);letter-spacing:1px">Firmware v1.4.0</div>
@@ -737,6 +726,23 @@ function selectVersion(ver) {
 if (!("serial" in navigator)) {
   document.getElementById("noSupport").style.display = "block";
 }
+
+// Click sur le homard → spin 360°
+(function() {
+  const el = document.getElementById('lobster3d');
+  if (!el) return;
+  let spinning = false;
+  el.addEventListener('click', function() {
+    if (spinning) return;
+    spinning = true;
+    el.style.animation = 'lobster-spin-once 0.65s cubic-bezier(0.4,0,0.2,1)';
+    el.addEventListener('animationend', function onEnd() {
+      el.removeEventListener('animationend', onEnd);
+      el.style.animation = 'lobster-float 4s ease-in-out infinite';
+      spinning = false;
+    });
+  });
+})();
 </script>
 
 </body>
