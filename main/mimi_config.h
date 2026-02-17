@@ -172,7 +172,8 @@
 #define MIMI_BATT_DIVIDER_RATIO  2.0f  /* facteur du pont diviseur */
 #define MIMI_BATT_FULL_MV        4200  /* tension pleine charge (mV) */
 #define MIMI_BATT_EMPTY_MV       3000  /* tension batterie vide (mV) */
-#define MIMI_BATT_CHARGE_MV      4150  /* seuil detection charge (mV) */
+#define MIMI_BATT_CHARGE_ON_MV   4350  /* seuil entree en charge (mV) — au-dessus du max batterie */
+#define MIMI_BATT_CHARGE_OFF_MV  4100  /* seuil sortie de charge (mV) — hysteresis */
 #define MIMI_BATT_POLL_MS        2000  /* lecture ADC toutes les 2s */
 #define MIMI_BATT_AVG_SAMPLES    8     /* moyenne glissante */
 

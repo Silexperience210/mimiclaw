@@ -14,18 +14,14 @@ static const char *TAG = "battery";
 static adc_oneshot_unit_handle_t s_adc_handle = NULL;
 static adc_cali_handle_t s_cali_handle = NULL;
 
-static int s_voltage_mv = 0;       /* tension batterie actuelle (mV) */
-static int s_percent = 0;          /* pourcentage 0-100 */
-static bool s_charging = false;    /* en charge ? */
+static int s_voltage_mv = 0;    /* tension batterie actuelle (mV) */
+static int s_percent = 0;       /* pourcentage 0-100 */
+static bool s_charging = false; /* en charge ? */
 
 /* Historique pour moyenne glissante */
 static int s_samples[MIMI_BATT_AVG_SAMPLES];
 static int s_sample_idx = 0;
 static int s_sample_count = 0;
-
-/* Detection tendance : tension monte = en charge */
-static int s_prev_avg_mv = 0;
-static int s_rising_count = 0;
 
 /* --- Helpers --- */
 
@@ -55,16 +51,16 @@ static void battery_read(void)
     esp_err_t ret = adc_oneshot_read(s_adc_handle, MIMI_BATT_ADC_CHANNEL, &raw);
     if (ret != ESP_OK) return;
 
-    /* Calibration → tension en mV (cote ADC) */
+    /* Calibration → tension en mV (cote ADC, avant diviseur) */
     int adc_mv = 0;
     if (s_cali_handle) {
         adc_cali_raw_to_voltage(s_cali_handle, raw, &adc_mv);
     } else {
-        /* Fallback sans calibration : estimation pour 12-bit, Vref ~1100mV, atten 11dB */
+        /* Fallback sans calibration : estimation pour 12-bit, atten 12dB */
         adc_mv = raw * 2500 / 4095;
     }
 
-    /* Appliquer le facteur du pont diviseur */
+    /* Appliquer le facteur du pont diviseur pour obtenir la tension reelle */
     int batt_mv = (int)(adc_mv * MIMI_BATT_DIVIDER_RATIO);
 
     /* Ajouter a la moyenne glissante */
@@ -76,26 +72,27 @@ static void battery_read(void)
     s_voltage_mv = avg_mv;
     s_percent = voltage_to_percent(avg_mv);
 
-    /* Detection charge : tension haute OU tendance a la hausse */
+    /*
+     * Detection charge par seuil avec hysteresis :
+     *
+     *  USB connecte → chargeur IC pousse tension > 4.2V max batterie
+     *  → on voit typiquement 4300-4400mV via le pont diviseur.
+     *
+     *  Entree en charge  : avg >= MIMI_BATT_CHARGE_ON_MV  (4350mV)
+     *  Sortie de charge  : avg <  MIMI_BATT_CHARGE_OFF_MV (4100mV)
+     *
+     *  L'hysteresis evite les faux declenchements dus au bruit ADC
+     *  et aux oscillations d'une batterie presque pleine (~4100-4200mV).
+     *  La detection de tendance a ete retiree : trop sensible au bruit.
+     */
     bool was_charging = s_charging;
 
-    if (avg_mv >= MIMI_BATT_CHARGE_MV) {
-        /* Tension tres haute = USB connecte */
+    if (!s_charging && avg_mv >= MIMI_BATT_CHARGE_ON_MV) {
         s_charging = true;
-        s_rising_count = 0;
-    } else if (s_prev_avg_mv > 0 && avg_mv > s_prev_avg_mv + 5) {
-        /* Tension monte de >5mV = probablement en charge */
-        s_rising_count++;
-        if (s_rising_count >= 3) {
-            s_charging = true;
-        }
-    } else if (s_prev_avg_mv > 0 && avg_mv < s_prev_avg_mv - 10) {
-        /* Tension descend = decharge */
-        s_rising_count = 0;
+    } else if (s_charging && avg_mv < MIMI_BATT_CHARGE_OFF_MV) {
         s_charging = false;
     }
-
-    s_prev_avg_mv = avg_mv;
+    /* Entre les deux seuils : on garde l'etat actuel (zone d'hysteresis) */
 
     /* Log si changement d'etat */
     if (s_charging != was_charging) {
@@ -110,7 +107,7 @@ static void battery_task(void *arg)
 {
     ESP_LOGI(TAG, "Battery monitor started (poll=%dms)", MIMI_BATT_POLL_MS);
 
-    /* Premieres lectures pour remplir le buffer */
+    /* Premieres lectures pour remplir le buffer de moyenne */
     for (int i = 0; i < MIMI_BATT_AVG_SAMPLES; i++) {
         battery_read();
         vTaskDelay(pdMS_TO_TICKS(100));
@@ -172,7 +169,7 @@ esp_err_t battery_monitor_init(void)
         s_cali_handle = NULL;
     }
 
-    /* Task polling */
+    /* Task polling (priorite basse, core 0) */
     BaseType_t xret = xTaskCreatePinnedToCore(
         battery_task, "batt_mon",
         3 * 1024, NULL,
@@ -183,8 +180,8 @@ esp_err_t battery_monitor_init(void)
         return ESP_FAIL;
     }
 
-    ESP_LOGI(TAG, "Battery monitor init OK (GPIO%d, ADC1_CH%d)",
-             MIMI_BATT_ADC_PIN, MIMI_BATT_ADC_CHANNEL);
+    ESP_LOGI(TAG, "Battery monitor init OK (GPIO%d, seuils ON=%dmV OFF=%dmV)",
+             MIMI_BATT_ADC_PIN, MIMI_BATT_CHARGE_ON_MV, MIMI_BATT_CHARGE_OFF_MV);
     return ESP_OK;
 }
 
