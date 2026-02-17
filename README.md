@@ -28,7 +28,7 @@ LilyClaw turns a tiny ESP32-S3 Lilygo Tdisplay S3 board into a personal AI assis
 
 ![](assets/mimiclaw.png)
 
-You send a message on Telegram. The ESP32-S3 picks it up over WiFi, feeds it into an agent loop — Claude thinks, calls tools, reads memory — and sends the reply back. Everything runs on a single $5 chip with all your data stored locally on flash.
+You send a message on Telegram. The ESP32-S3 picks it up over WiFi, feeds it into an agent loop — the AI thinks, calls tools, reads memory — and sends the reply back. Works with Claude (Anthropic) or Kimi K2.5 (Moonshot AI). Everything runs on a single $5 chip with all your data stored locally on flash.
 
 ## Quick Start
 
@@ -37,7 +37,7 @@ You send a message on Telegram. The ESP32-S3 picks it up over WiFi, feeds it int
 - An **ESP32-S3 dev board** with 16 MB flash and 8 MB PSRAM (e.g. Xiaozhi AI board, ~$10)
 - A **USB Type-C cable**
 - A **Telegram bot token** — talk to [@BotFather](https://t.me/BotFather) on Telegram to create one
-- An **Anthropic API key** — from [console.anthropic.com](https://console.anthropic.com)
+- An **LLM API key** — either [Anthropic](https://console.anthropic.com) (Claude) or [Moonshot AI](https://platform.moonshot.cn) (Kimi K2.5)
 
 ### Web Flash (easy — no tools needed)
 
@@ -101,7 +101,8 @@ Connect via serial to configure or debug. **Config commands** let you change set
 ```
 mimi> wifi_set MySSID MyPassword   # change WiFi network
 mimi> set_tg_token 123456:ABC...   # change Telegram bot token
-mimi> set_api_key sk-ant-api03-... # change Anthropic API key
+mimi> set_api_key sk-ant-api03-... # change API key (Anthropic or Kimi)
+mimi> set_provider kimi             # switch to Kimi K2.5 (or: anthropic)
 mimi> set_model claude-sonnet-4-5  # change LLM model
 mimi> set_proxy 127.0.0.1 7897  # set HTTP proxy
 mimi> clear_proxy                  # remove proxy
@@ -141,7 +142,7 @@ LilyClaw stores everything as plain text files you can read and edit:
 | **v1.0** | Any ESP32-S3 (16MB flash, 8MB PSRAM) | Telegram + AI + tools |
 | **v1.2** | LilyGo T-Display S3 | + Ecran + boutons + deep sleep |
 | **v1.3** | T-Display S3 + HC-SR04 + 4 servos | + Corps physique animé |
-| **v1.4** | Same as v1.3 (no extra hardware) | + Sonar radar + gestures + spatial AI + sentinel + etch-a-sketch |
+| **v1.4** | Same as v1.3 (no extra hardware) | + Sonar radar + gestures + spatial AI + sentinel + etch-a-sketch + battery monitor + multi-provider LLM (Kimi) |
 
 ### v1.3 Wiring — HC-SR04 + Servos
 
@@ -197,9 +198,9 @@ Or use the [Web Flasher](https://silexperience210.github.io/lilyclaw/) and selec
 - Au boot, la tête se centre (90°) et les pinces se ferment (0°).
 - L'IA peut contrôler les servos via Telegram avec les tools `move_head`, `move_claw`, `animate`, `read_distance`.
 
-### v1.4 — Sonar Radar, Gesture Recognition & Spatial AI
+### v1.4 — Sonar Radar, Gesture Recognition, Spatial AI, Battery Monitor & Multi-Provider LLM
 
-**No extra hardware needed** — v1.4 is a pure software upgrade on the same v1.3 board. It turns LilyClaw into a spatially-aware AI that perceives, reacts to, and comments on its physical environment.
+**No extra hardware needed** — v1.4 is a pure software upgrade on the same v1.3 board. It adds spatial awareness, battery management, and support for multiple LLM providers.
 
 #### Sonar Radar
 
@@ -272,6 +273,40 @@ Draw on the screen without touching anything:
 
 The canvas is rendered at 160x85 in PSRAM, displayed at 2x scale.
 
+#### Battery Monitor & Charging Animation
+
+LilyClaw monitors battery voltage via ADC on GPIO4 (T-Display S3 built-in voltage divider):
+
+- **Moving average** over 8 samples, polled every 2 seconds
+- **Charging detection** — voltage threshold (> 4.15V) or rising trend (3+ consecutive increases)
+- **Animated charging screen** — battery icon with pulse fill, lightning bolt, percentage, voltage display, particle effects
+- **Servo lockout** — all servo movements are automatically disabled during charging to protect the battery
+- Color-coded level: red (< 20%), orange (< 50%), green (> 50%)
+
+#### Multi-Provider LLM — Anthropic + Kimi K2.5
+
+LilyClaw now supports **two LLM providers** out of the box:
+
+| Provider | Model | Context | Tool Calling |
+|----------|-------|---------|--------------|
+| **Anthropic** | Claude (any model) | Up to 200K | Native tool_use |
+| **Moonshot AI** | Kimi K2.5 | 256K | OpenAI-compatible |
+
+Switch providers via CLI (`set_provider kimi`) or the web portal. The translation layer handles all format differences automatically:
+
+- **Request format** — Anthropic Messages API vs OpenAI Chat Completions
+- **Tool calling** — `tool_use`/`tool_result` blocks vs `tool_calls`/`role:tool` messages
+- **Tools schema** — `input_schema` vs `function.parameters`
+- **Response parsing** — `content[].type` vs `choices[].message`
+
+All existing tools (web search, file ops, servos, radar, sentinel) work identically with both providers.
+
+To use Kimi K2.5:
+1. Get an API key at [platform.moonshot.cn](https://platform.moonshot.cn)
+2. Set provider: `set_provider kimi` (CLI) or select in the web portal
+3. Set API key: `set_api_key sk-...`
+4. The model defaults to `kimi-k2.5` automatically
+
 #### v1.4 Memory Impact
 
 All v1.4 features combined use **less than 1 KB of additional RAM**:
@@ -285,7 +320,7 @@ All v1.4 features combined use **less than 1 KB of additional RAM**:
 
 ## Tools
 
-LilyClaw uses Anthropic's tool use protocol — Claude can call tools during a conversation and loop until the task is done (ReAct pattern).
+LilyClaw uses a ReAct agent loop — the AI calls tools during a conversation and loops until the task is done. Works with both Anthropic (native tool_use) and OpenAI-compatible APIs (Kimi K2.5).
 
 | Tool | Description |
 |------|-------------|
@@ -307,7 +342,8 @@ To enable web search, set a [Brave Search API key](https://brave.com/search/api/
 - **OTA updates** — flash new firmware over WiFi, no USB needed
 - **Dual-core** — network I/O and AI processing run on separate CPU cores
 - **HTTP proxy** — CONNECT tunnel support for restricted networks
-- **Tool use** — ReAct agent loop with Anthropic tool use protocol
+- **Multi-provider LLM** — Anthropic (Claude) or Moonshot AI (Kimi K2.5), switchable at runtime
+- **Tool use** — ReAct agent loop with automatic format translation between providers
 
 ## For Developers
 
