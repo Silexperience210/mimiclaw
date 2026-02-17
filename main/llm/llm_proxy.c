@@ -842,11 +842,17 @@ esp_err_t llm_set_provider(llm_provider_t provider)
     ESP_ERROR_CHECK(nvs_open(MIMI_NVS_LLM, NVS_READWRITE, &nvs));
     const char *val = (provider == LLM_PROVIDER_KIMI) ? "kimi" : "anthropic";
     ESP_ERROR_CHECK(nvs_set_str(nvs, MIMI_NVS_KEY_PROVIDER, val));
+
+    /* Auto-switch modele par defaut + clear NVS model override */
+    const char *default_model = (provider == LLM_PROVIDER_KIMI)
+        ? MIMI_KIMI_DEFAULT_MODEL : MIMI_LLM_DEFAULT_MODEL;
+    nvs_erase_key(nvs, MIMI_NVS_KEY_MODEL);
     ESP_ERROR_CHECK(nvs_commit(nvs));
     nvs_close(nvs);
 
     s_provider = provider;
-    ESP_LOGI(TAG, "Provider: %s", val);
+    strncpy(s_model, default_model, sizeof(s_model) - 1);
+    ESP_LOGI(TAG, "Provider: %s, model: %s", val, s_model);
     return ESP_OK;
 }
 
