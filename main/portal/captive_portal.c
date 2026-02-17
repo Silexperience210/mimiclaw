@@ -56,11 +56,12 @@ static const char PORTAL_HTML[] =
 ".field{margin-bottom:14px}"
 "label{display:block;font-size:12px;color:#888;margin-bottom:4px}"
 ".input-wrap{position:relative}"
-"input[type=text],input[type=password],input[type=number]{width:100%;padding:10px 14px;"
+"input[type=text],input[type=password],input[type=number],select{width:100%;padding:10px 14px;"
 "background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;"
 "color:#fff;font-size:14px;outline:none;transition:border 0.2s}"
 "input:focus{border-color:#a855f7}"
 "input::placeholder{color:#444}"
+"select option{background:#1a1a2e;color:#e0e0e0}"
 ".toggle-pw{position:absolute;right:10px;top:50%;transform:translateY(-50%);"
 "background:none;border:none;color:#666;cursor:pointer;font-size:16px}"
 ".btn{width:100%;padding:14px;background:linear-gradient(135deg,#a855f7,#7c3aed);"
@@ -106,14 +107,19 @@ static const char PORTAL_HTML[] =
 "<div class='hint'>Obtenu via @BotFather sur Telegram</div></div>"
 "</div>"
 
-/* Claude API Card */
+/* IA Card (Anthropic / Kimi) */
 "<div class='card' style='animation-delay:0.3s'>"
-"<div class='card-title'>&#129302; Claude API</div>"
+"<div class='card-title'>&#129302; Intelligence Artificielle</div>"
+"<div class='field'><label>Fournisseur</label>"
+"<select id='provider' onchange='providerChanged()'>"
+"<option value='anthropic'>Anthropic (Claude)</option>"
+"<option value='kimi'>Moonshot AI (Kimi)</option>"
+"</select></div>"
 "<div class='field'><label>API Key</label>"
 "<div class='input-wrap'><input type='password' id='api_key' placeholder='sk-ant-api03-...'>"
 "<button class='toggle-pw' onclick=\"togglePw('api_key')\">&#128065;</button></div></div>"
 "<div class='field'><label>Model</label>"
-"<input type='text' id='model' placeholder='claude-sonnet-4-5 (defaut si vide)'></div>"
+"<input type='text' id='model' placeholder='claude-opus-4-5 (defaut si vide)'></div>"
 "</div>"
 
 /* Proxy Card */
@@ -145,6 +151,13 @@ static const char PORTAL_HTML[] =
 "var e=document.getElementById(id);"
 "e.type=e.type==='password'?'text':'password'}"
 
+"function providerChanged(){"
+"var p=document.getElementById('provider').value;"
+"var m=document.getElementById('model');"
+"var k=document.getElementById('api_key');"
+"if(p==='kimi'){m.placeholder='kimi-k2.5';k.placeholder='sk-...'}"
+"else{m.placeholder='claude-opus-4-5';k.placeholder='sk-ant-api03-...'}}"
+
 "function showStatus(msg,ok){"
 "var s=document.getElementById('status');"
 "s.textContent=msg;s.className='status '+(ok?'ok':'err')}"
@@ -152,6 +165,7 @@ static const char PORTAL_HTML[] =
 "async function loadConfig(){"
 "try{var r=await fetch('/api/config');var d=await r.json();"
 "if(d.wifi_ssid)document.getElementById('wifi_ssid').value=d.wifi_ssid;"
+"if(d.provider){document.getElementById('provider').value=d.provider;providerChanged()}"
 "if(d.model)document.getElementById('model').value=d.model;"
 "if(d.proxy_host)document.getElementById('proxy_host').value=d.proxy_host;"
 "if(d.proxy_port)document.getElementById('proxy_port').value=d.proxy_port;"
@@ -164,6 +178,7 @@ static const char PORTAL_HTML[] =
 "wifi_ssid:document.getElementById('wifi_ssid').value,"
 "wifi_pass:document.getElementById('wifi_pass').value,"
 "tg_token:document.getElementById('tg_token').value,"
+"provider:document.getElementById('provider').value,"
 "api_key:document.getElementById('api_key').value,"
 "model:document.getElementById('model').value,"
 "proxy_host:document.getElementById('proxy_host').value,"
@@ -202,6 +217,10 @@ static char *build_config_json(void)
         strncpy(buf, MIMI_SECRET_WIFI_SSID, sizeof(buf) - 1);
     }
     cJSON_AddStringToObject(root, "wifi_ssid", buf);
+
+    /* Provider */
+    cJSON_AddStringToObject(root, "provider",
+        llm_get_provider() == LLM_PROVIDER_KIMI ? "kimi" : "anthropic");
 
     /* Model (non masque) */
     buf[0] = '\0';
@@ -318,6 +337,16 @@ static esp_err_t handler_save(httpd_req_t *req)
         telegram_set_token(tg->valuestring);
         saved++;
         ESP_LOGI(TAG, "Telegram token saved");
+    }
+
+    /* Provider */
+    cJSON *provider = cJSON_GetObjectItem(root, "provider");
+    if (provider && cJSON_IsString(provider) && provider->valuestring[0]) {
+        llm_provider_t p = (strcmp(provider->valuestring, "kimi") == 0)
+                           ? LLM_PROVIDER_KIMI : LLM_PROVIDER_ANTHROPIC;
+        llm_set_provider(p);
+        saved++;
+        ESP_LOGI(TAG, "Provider saved: %s", provider->valuestring);
     }
 
     /* API key */

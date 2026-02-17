@@ -62,6 +62,10 @@
 #define MIMI_LLM_API_VERSION         "2023-06-01"
 #define MIMI_LLM_STREAM_BUF_SIZE     (32 * 1024)
 
+/* Kimi API (Moonshot AI — format OpenAI-compatible) */
+#define MIMI_KIMI_API_URL            "https://api.moonshot.ai/v1/chat/completions"
+#define MIMI_KIMI_DEFAULT_MODEL      "kimi-k2.5"
+
 /* Message Bus */
 #define MIMI_BUS_QUEUE_LEN           8
 #define MIMI_OUTBOUND_STACK          (8 * 1024)
@@ -196,4 +200,5 @@
 #define MIMI_NVS_KEY_MODEL           "model"
 #define MIMI_NVS_KEY_PROXY_HOST      "host"
 #define MIMI_NVS_KEY_PROXY_PORT      "port"
+#define MIMI_NVS_KEY_PROVIDER        "provider"
 

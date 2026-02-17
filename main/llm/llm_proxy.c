@@ -15,6 +15,7 @@ static const char *TAG = "llm";
 
 static char s_api_key[128] = {0};
 static char s_model[64] = MIMI_LLM_DEFAULT_MODEL;
+static llm_provider_t s_provider = LLM_PROVIDER_ANTHROPIC;
 
 /* ── Response buffer ──────────────────────────────────────────── */
 
@@ -56,7 +57,7 @@ static void resp_buf_free(resp_buf_t *rb)
     rb->cap = 0;
 }
 
-/* ── HTTP event handler (for esp_http_client direct path) ─────── */
+/* ── HTTP event handler ───────────────────────────────────────── */
 
 static esp_err_t http_event_handler(esp_http_client_event_t *evt)
 {
@@ -67,11 +68,31 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
+/* ── Helpers provider ─────────────────────────────────────────── */
+
+static const char *get_api_url(void)
+{
+    return (s_provider == LLM_PROVIDER_KIMI)
+        ? MIMI_KIMI_API_URL : MIMI_LLM_API_URL;
+}
+
+static const char *get_api_host(void)
+{
+    return (s_provider == LLM_PROVIDER_KIMI)
+        ? "api.moonshot.ai" : "api.anthropic.com";
+}
+
+static const char *get_api_path(void)
+{
+    return (s_provider == LLM_PROVIDER_KIMI)
+        ? "/v1/chat/completions" : "/v1/messages";
+}
+
 /* ── Init ─────────────────────────────────────────────────────── */
 
 esp_err_t llm_proxy_init(void)
 {
-    /* Start with build-time defaults */
+    /* Valeurs par defaut (build-time) */
     if (MIMI_SECRET_API_KEY[0] != '\0') {
         strncpy(s_api_key, MIMI_SECRET_API_KEY, sizeof(s_api_key) - 1);
     }
@@ -79,24 +100,44 @@ esp_err_t llm_proxy_init(void)
         strncpy(s_model, MIMI_SECRET_MODEL, sizeof(s_model) - 1);
     }
 
-    /* NVS overrides take highest priority (set via CLI) */
+    /* NVS overrides (priorite la plus haute) */
     nvs_handle_t nvs;
     if (nvs_open(MIMI_NVS_LLM, NVS_READONLY, &nvs) == ESP_OK) {
         char tmp[128] = {0};
-        size_t len = sizeof(tmp);
+        size_t len;
+
+        /* Provider en premier (pour choisir le modele par defaut) */
+        len = sizeof(tmp);
+        if (nvs_get_str(nvs, MIMI_NVS_KEY_PROVIDER, tmp, &len) == ESP_OK && tmp[0]) {
+            if (strcmp(tmp, "kimi") == 0) {
+                s_provider = LLM_PROVIDER_KIMI;
+                /* Modele Kimi par defaut si pas d'override build-time */
+                if (MIMI_SECRET_MODEL[0] == '\0') {
+                    strncpy(s_model, MIMI_KIMI_DEFAULT_MODEL, sizeof(s_model) - 1);
+                }
+            }
+        }
+
+        /* API Key */
+        len = sizeof(tmp);
+        memset(tmp, 0, sizeof(tmp));
         if (nvs_get_str(nvs, MIMI_NVS_KEY_API_KEY, tmp, &len) == ESP_OK && tmp[0]) {
             strncpy(s_api_key, tmp, sizeof(s_api_key) - 1);
         }
+
+        /* Model (override final) */
         len = sizeof(tmp);
         memset(tmp, 0, sizeof(tmp));
         if (nvs_get_str(nvs, MIMI_NVS_KEY_MODEL, tmp, &len) == ESP_OK && tmp[0]) {
             strncpy(s_model, tmp, sizeof(s_model) - 1);
         }
+
         nvs_close(nvs);
     }
 
     if (s_api_key[0]) {
-        ESP_LOGI(TAG, "LLM proxy initialized (model: %s)", s_model);
+        ESP_LOGI(TAG, "LLM proxy init OK (provider: %s, model: %s)",
+                 llm_get_provider_name(), s_model);
     } else {
         ESP_LOGW(TAG, "No API key. Use CLI: set_api_key <KEY>");
     }
@@ -108,7 +149,7 @@ esp_err_t llm_proxy_init(void)
 static esp_err_t llm_http_direct(const char *post_data, resp_buf_t *rb, int *out_status)
 {
     esp_http_client_config_t config = {
-        .url = MIMI_LLM_API_URL,
+        .url = get_api_url(),
         .event_handler = http_event_handler,
         .user_data = rb,
         .timeout_ms = 120 * 1000,
@@ -122,8 +163,16 @@ static esp_err_t llm_http_direct(const char *post_data, resp_buf_t *rb, int *out
 
     esp_http_client_set_method(client, HTTP_METHOD_POST);
     esp_http_client_set_header(client, "Content-Type", "application/json");
-    esp_http_client_set_header(client, "x-api-key", s_api_key);
-    esp_http_client_set_header(client, "anthropic-version", MIMI_LLM_API_VERSION);
+
+    if (s_provider == LLM_PROVIDER_KIMI) {
+        char auth[160];
+        snprintf(auth, sizeof(auth), "Bearer %s", s_api_key);
+        esp_http_client_set_header(client, "Authorization", auth);
+    } else {
+        esp_http_client_set_header(client, "x-api-key", s_api_key);
+        esp_http_client_set_header(client, "anthropic-version", MIMI_LLM_API_VERSION);
+    }
+
     esp_http_client_set_post_field(client, post_data, strlen(post_data));
 
     esp_err_t err = esp_http_client_perform(client);
@@ -132,24 +181,40 @@ static esp_err_t llm_http_direct(const char *post_data, resp_buf_t *rb, int *out
     return err;
 }
 
-/* ── Proxy path: manual HTTP over CONNECT tunnel ────────────── */
+/* ── Proxy path: HTTP over CONNECT tunnel ────────────────────── */
 
 static esp_err_t llm_http_via_proxy(const char *post_data, resp_buf_t *rb, int *out_status)
 {
-    proxy_conn_t *conn = proxy_conn_open("api.anthropic.com", 443, 30000);
+    const char *host = get_api_host();
+    const char *path = get_api_path();
+
+    proxy_conn_t *conn = proxy_conn_open(host, 443, 30000);
     if (!conn) return ESP_ERR_HTTP_CONNECT;
 
     int body_len = strlen(post_data);
     char header[512];
-    int hlen = snprintf(header, sizeof(header),
-        "POST /v1/messages HTTP/1.1\r\n"
-        "Host: api.anthropic.com\r\n"
-        "Content-Type: application/json\r\n"
-        "x-api-key: %s\r\n"
-        "anthropic-version: %s\r\n"
-        "Content-Length: %d\r\n"
-        "Connection: close\r\n\r\n",
-        s_api_key, MIMI_LLM_API_VERSION, body_len);
+    int hlen;
+
+    if (s_provider == LLM_PROVIDER_KIMI) {
+        hlen = snprintf(header, sizeof(header),
+            "POST %s HTTP/1.1\r\n"
+            "Host: %s\r\n"
+            "Content-Type: application/json\r\n"
+            "Authorization: Bearer %s\r\n"
+            "Content-Length: %d\r\n"
+            "Connection: close\r\n\r\n",
+            path, host, s_api_key, body_len);
+    } else {
+        hlen = snprintf(header, sizeof(header),
+            "POST %s HTTP/1.1\r\n"
+            "Host: %s\r\n"
+            "Content-Type: application/json\r\n"
+            "x-api-key: %s\r\n"
+            "anthropic-version: %s\r\n"
+            "Content-Length: %d\r\n"
+            "Connection: close\r\n\r\n",
+            path, host, s_api_key, MIMI_LLM_API_VERSION, body_len);
+    }
 
     if (proxy_conn_write(conn, header, hlen) < 0 ||
         proxy_conn_write(conn, post_data, body_len) < 0) {
@@ -157,7 +222,7 @@ static esp_err_t llm_http_via_proxy(const char *post_data, resp_buf_t *rb, int *
         return ESP_ERR_HTTP_WRITE_DATA;
     }
 
-    /* Read full response into buffer */
+    /* Lire la reponse complete */
     char tmp[4096];
     while (1) {
         int n = proxy_conn_read(conn, tmp, sizeof(tmp), 120000);
@@ -166,14 +231,14 @@ static esp_err_t llm_http_via_proxy(const char *post_data, resp_buf_t *rb, int *
     }
     proxy_conn_close(conn);
 
-    /* Parse status line */
+    /* Parser la ligne de statut HTTP */
     *out_status = 0;
     if (rb->len > 5 && strncmp(rb->data, "HTTP/", 5) == 0) {
         const char *sp = strchr(rb->data, ' ');
         if (sp) *out_status = atoi(sp + 1);
     }
 
-    /* Strip HTTP headers, keep body only */
+    /* Retirer les headers HTTP, garder le body */
     char *body = strstr(rb->data, "\r\n\r\n");
     if (body) {
         body += 4;
@@ -186,7 +251,7 @@ static esp_err_t llm_http_via_proxy(const char *post_data, resp_buf_t *rb, int *
     return ESP_OK;
 }
 
-/* ── Shared HTTP dispatch ─────────────────────────────────────── */
+/* ── Dispatch HTTP ────────────────────────────────────────────── */
 
 static esp_err_t llm_http_call(const char *post_data, resp_buf_t *rb, int *out_status)
 {
@@ -197,9 +262,9 @@ static esp_err_t llm_http_call(const char *post_data, resp_buf_t *rb, int *out_s
     }
 }
 
-/* ── Parse text from JSON response ────────────────────────────── */
+/* ── Extraction texte Anthropic ───────────────────────────────── */
 
-static void extract_text(cJSON *root, char *buf, size_t size)
+static void extract_text_anthropic(cJSON *root, char *buf, size_t size)
 {
     buf[0] = '\0';
     cJSON *content = cJSON_GetObjectItem(root, "content");
@@ -220,7 +285,232 @@ static void extract_text(cJSON *root, char *buf, size_t size)
     buf[off] = '\0';
 }
 
-/* ── Public: simple chat (backward compat) ────────────────────── */
+/* ── Extraction texte OpenAI ──────────────────────────────────── */
+
+static void extract_text_openai(cJSON *root, char *buf, size_t size)
+{
+    buf[0] = '\0';
+    cJSON *choices = cJSON_GetObjectItem(root, "choices");
+    if (!choices || !cJSON_IsArray(choices) || cJSON_GetArraySize(choices) == 0) return;
+
+    cJSON *choice0 = cJSON_GetArrayItem(choices, 0);
+    cJSON *message = cJSON_GetObjectItem(choice0, "message");
+    if (!message) return;
+
+    cJSON *content = cJSON_GetObjectItem(message, "content");
+    if (content && cJSON_IsString(content)) {
+        strncpy(buf, content->valuestring, size - 1);
+        buf[size - 1] = '\0';
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+ * TRADUCTION ANTHROPIC → OPENAI (pour Kimi)
+ * ══════════════════════════════════════════════════════════════════ */
+
+/* Traduit les messages Anthropic (tool_use/tool_result) → format OpenAI (tool_calls/role:tool) */
+static cJSON *translate_messages_to_openai(const char *system_prompt, cJSON *messages)
+{
+    cJSON *oai_msgs = cJSON_CreateArray();
+
+    /* System prompt comme premier message */
+    if (system_prompt && system_prompt[0]) {
+        cJSON *sys = cJSON_CreateObject();
+        cJSON_AddStringToObject(sys, "role", "system");
+        cJSON_AddStringToObject(sys, "content", system_prompt);
+        cJSON_AddItemToArray(oai_msgs, sys);
+    }
+
+    cJSON *msg;
+    cJSON_ArrayForEach(msg, messages) {
+        cJSON *role = cJSON_GetObjectItem(msg, "role");
+        cJSON *content = cJSON_GetObjectItem(msg, "content");
+        if (!role || !cJSON_IsString(role)) continue;
+
+        if (strcmp(role->valuestring, "user") == 0) {
+            if (cJSON_IsString(content)) {
+                /* Message texte simple */
+                cJSON *oai = cJSON_CreateObject();
+                cJSON_AddStringToObject(oai, "role", "user");
+                cJSON_AddStringToObject(oai, "content", content->valuestring);
+                cJSON_AddItemToArray(oai_msgs, oai);
+
+            } else if (cJSON_IsArray(content)) {
+                /* Contient des blocs tool_result → messages role:tool */
+                cJSON *block;
+                cJSON_ArrayForEach(block, content) {
+                    cJSON *btype = cJSON_GetObjectItem(block, "type");
+                    if (!btype || strcmp(btype->valuestring, "tool_result") != 0) continue;
+
+                    cJSON *tool_id = cJSON_GetObjectItem(block, "tool_use_id");
+                    cJSON *result = cJSON_GetObjectItem(block, "content");
+
+                    cJSON *oai = cJSON_CreateObject();
+                    cJSON_AddStringToObject(oai, "role", "tool");
+                    if (tool_id && cJSON_IsString(tool_id))
+                        cJSON_AddStringToObject(oai, "tool_call_id", tool_id->valuestring);
+                    if (result && cJSON_IsString(result))
+                        cJSON_AddStringToObject(oai, "content", result->valuestring);
+                    else
+                        cJSON_AddStringToObject(oai, "content", "");
+                    cJSON_AddItemToArray(oai_msgs, oai);
+                }
+            }
+
+        } else if (strcmp(role->valuestring, "assistant") == 0) {
+            if (cJSON_IsString(content)) {
+                /* Message texte simple */
+                cJSON *oai = cJSON_CreateObject();
+                cJSON_AddStringToObject(oai, "role", "assistant");
+                cJSON_AddStringToObject(oai, "content", content->valuestring);
+                cJSON_AddItemToArray(oai_msgs, oai);
+
+            } else if (cJSON_IsArray(content)) {
+                /* Contient text + blocs tool_use → assistant + tool_calls */
+                cJSON *oai = cJSON_CreateObject();
+                cJSON_AddStringToObject(oai, "role", "assistant");
+
+                const char *text_val = NULL;
+                cJSON *tool_calls = NULL;
+
+                cJSON *block;
+                cJSON_ArrayForEach(block, content) {
+                    cJSON *btype = cJSON_GetObjectItem(block, "type");
+                    if (!btype) continue;
+
+                    if (strcmp(btype->valuestring, "text") == 0) {
+                        cJSON *t = cJSON_GetObjectItem(block, "text");
+                        if (t && cJSON_IsString(t)) text_val = t->valuestring;
+
+                    } else if (strcmp(btype->valuestring, "tool_use") == 0) {
+                        if (!tool_calls) tool_calls = cJSON_CreateArray();
+
+                        cJSON *tc = cJSON_CreateObject();
+                        cJSON *id = cJSON_GetObjectItem(block, "id");
+                        cJSON *name = cJSON_GetObjectItem(block, "name");
+                        cJSON *input = cJSON_GetObjectItem(block, "input");
+
+                        if (id && cJSON_IsString(id))
+                            cJSON_AddStringToObject(tc, "id", id->valuestring);
+                        cJSON_AddStringToObject(tc, "type", "function");
+
+                        cJSON *func = cJSON_CreateObject();
+                        if (name && cJSON_IsString(name))
+                            cJSON_AddStringToObject(func, "name", name->valuestring);
+                        if (input) {
+                            char *args = cJSON_PrintUnformatted(input);
+                            if (args) {
+                                cJSON_AddStringToObject(func, "arguments", args);
+                                free(args);
+                            }
+                        }
+                        cJSON_AddItemToObject(tc, "function", func);
+                        cJSON_AddItemToArray(tool_calls, tc);
+                    }
+                }
+
+                if (text_val)
+                    cJSON_AddStringToObject(oai, "content", text_val);
+                else
+                    cJSON_AddNullToObject(oai, "content");
+
+                if (tool_calls)
+                    cJSON_AddItemToObject(oai, "tool_calls", tool_calls);
+
+                cJSON_AddItemToArray(oai_msgs, oai);
+            }
+        }
+    }
+
+    return oai_msgs;
+}
+
+/* Traduit les tools Anthropic (input_schema) → format OpenAI (function/parameters) */
+static char *translate_tools_to_openai(const char *anthropic_tools_json)
+{
+    cJSON *anthropic = cJSON_Parse(anthropic_tools_json);
+    if (!anthropic) return NULL;
+
+    cJSON *oai = cJSON_CreateArray();
+    cJSON *tool;
+    cJSON_ArrayForEach(tool, anthropic) {
+        cJSON *oai_tool = cJSON_CreateObject();
+        cJSON_AddStringToObject(oai_tool, "type", "function");
+
+        cJSON *func = cJSON_CreateObject();
+        cJSON *name = cJSON_GetObjectItem(tool, "name");
+        cJSON *desc = cJSON_GetObjectItem(tool, "description");
+        cJSON *schema = cJSON_GetObjectItem(tool, "input_schema");
+
+        if (name) cJSON_AddStringToObject(func, "name", name->valuestring);
+        if (desc) cJSON_AddStringToObject(func, "description", desc->valuestring);
+        if (schema) cJSON_AddItemToObject(func, "parameters", cJSON_Duplicate(schema, 1));
+
+        cJSON_AddItemToObject(oai_tool, "function", func);
+        cJSON_AddItemToArray(oai, oai_tool);
+    }
+
+    cJSON_Delete(anthropic);
+    char *json = cJSON_PrintUnformatted(oai);
+    cJSON_Delete(oai);
+    return json;
+}
+
+/* Parse la reponse OpenAI/Kimi → llm_response_t */
+static void parse_openai_response(cJSON *root, llm_response_t *resp)
+{
+    cJSON *choices = cJSON_GetObjectItem(root, "choices");
+    if (!choices || !cJSON_IsArray(choices) || cJSON_GetArraySize(choices) == 0) return;
+
+    cJSON *choice0 = cJSON_GetArrayItem(choices, 0);
+    cJSON *message = cJSON_GetObjectItem(choice0, "message");
+    if (!message) return;
+
+    /* finish_reason: "tool_calls" → continuer, "stop" → fin */
+    cJSON *finish = cJSON_GetObjectItem(choice0, "finish_reason");
+    if (finish && cJSON_IsString(finish)) {
+        resp->tool_use = (strcmp(finish->valuestring, "tool_calls") == 0);
+    }
+
+    /* Texte de la reponse */
+    cJSON *content = cJSON_GetObjectItem(message, "content");
+    if (content && cJSON_IsString(content) && strlen(content->valuestring) > 0) {
+        resp->text = strdup(content->valuestring);
+        if (resp->text) resp->text_len = strlen(resp->text);
+    }
+
+    /* Tool calls */
+    cJSON *tool_calls = cJSON_GetObjectItem(message, "tool_calls");
+    if (tool_calls && cJSON_IsArray(tool_calls)) {
+        cJSON *tc;
+        cJSON_ArrayForEach(tc, tool_calls) {
+            if (resp->call_count >= MIMI_MAX_TOOL_CALLS) break;
+
+            llm_tool_call_t *call = &resp->calls[resp->call_count];
+
+            cJSON *id = cJSON_GetObjectItem(tc, "id");
+            if (id && cJSON_IsString(id))
+                strncpy(call->id, id->valuestring, sizeof(call->id) - 1);
+
+            cJSON *func = cJSON_GetObjectItem(tc, "function");
+            if (func) {
+                cJSON *name = cJSON_GetObjectItem(func, "name");
+                if (name && cJSON_IsString(name))
+                    strncpy(call->name, name->valuestring, sizeof(call->name) - 1);
+
+                cJSON *args = cJSON_GetObjectItem(func, "arguments");
+                if (args && cJSON_IsString(args)) {
+                    call->input = strdup(args->valuestring);
+                    if (call->input) call->input_len = strlen(call->input);
+                }
+            }
+
+            resp->call_count++;
+        }
+    }
+}
+
+/* ── Public: chat simple (retro-compat) ───────────────────────── */
 
 esp_err_t llm_chat(const char *system_prompt, const char *messages_json,
                    char *response_buf, size_t buf_size)
@@ -230,22 +520,51 @@ esp_err_t llm_chat(const char *system_prompt, const char *messages_json,
         return ESP_ERR_INVALID_STATE;
     }
 
-    /* Build request body (non-streaming) */
     cJSON *body = cJSON_CreateObject();
     cJSON_AddStringToObject(body, "model", s_model);
     cJSON_AddNumberToObject(body, "max_tokens", MIMI_LLM_MAX_TOKENS);
-    cJSON_AddStringToObject(body, "system", system_prompt);
 
     cJSON *messages = cJSON_Parse(messages_json);
-    if (messages) {
-        cJSON_AddItemToObject(body, "messages", messages);
+
+    if (s_provider == LLM_PROVIDER_KIMI) {
+        /* Format OpenAI : system comme message, pas comme champ */
+        cJSON *oai_msgs = cJSON_CreateArray();
+
+        if (system_prompt && system_prompt[0]) {
+            cJSON *sys = cJSON_CreateObject();
+            cJSON_AddStringToObject(sys, "role", "system");
+            cJSON_AddStringToObject(sys, "content", system_prompt);
+            cJSON_AddItemToArray(oai_msgs, sys);
+        }
+
+        if (messages) {
+            cJSON *m;
+            cJSON_ArrayForEach(m, messages) {
+                cJSON_AddItemToArray(oai_msgs, cJSON_Duplicate(m, 1));
+            }
+            cJSON_Delete(messages);
+        } else {
+            cJSON *m = cJSON_CreateObject();
+            cJSON_AddStringToObject(m, "role", "user");
+            cJSON_AddStringToObject(m, "content", messages_json);
+            cJSON_AddItemToArray(oai_msgs, m);
+        }
+
+        cJSON_AddItemToObject(body, "messages", oai_msgs);
     } else {
-        cJSON *arr = cJSON_CreateArray();
-        cJSON *msg = cJSON_CreateObject();
-        cJSON_AddStringToObject(msg, "role", "user");
-        cJSON_AddStringToObject(msg, "content", messages_json);
-        cJSON_AddItemToArray(arr, msg);
-        cJSON_AddItemToObject(body, "messages", arr);
+        /* Format Anthropic */
+        cJSON_AddStringToObject(body, "system", system_prompt);
+
+        if (messages) {
+            cJSON_AddItemToObject(body, "messages", messages);
+        } else {
+            cJSON *arr = cJSON_CreateArray();
+            cJSON *msg = cJSON_CreateObject();
+            cJSON_AddStringToObject(msg, "role", "user");
+            cJSON_AddStringToObject(msg, "content", messages_json);
+            cJSON_AddItemToArray(arr, msg);
+            cJSON_AddItemToObject(body, "messages", arr);
+        }
     }
 
     char *post_data = cJSON_PrintUnformatted(body);
@@ -255,8 +574,8 @@ esp_err_t llm_chat(const char *system_prompt, const char *messages_json,
         return ESP_ERR_NO_MEM;
     }
 
-    ESP_LOGI(TAG, "Calling Claude API (model: %s, body: %d bytes)",
-             s_model, (int)strlen(post_data));
+    ESP_LOGI(TAG, "Calling %s API (model: %s, body: %d bytes)",
+             llm_get_provider_name(), s_model, (int)strlen(post_data));
 
     resp_buf_t rb;
     if (resp_buf_init(&rb, MIMI_LLM_STREAM_BUF_SIZE) != ESP_OK) {
@@ -285,7 +604,6 @@ esp_err_t llm_chat(const char *system_prompt, const char *messages_json,
         return ESP_FAIL;
     }
 
-    /* Parse JSON response */
     cJSON *root = cJSON_Parse(rb.data);
     resp_buf_free(&rb);
 
@@ -294,19 +612,25 @@ esp_err_t llm_chat(const char *system_prompt, const char *messages_json,
         return ESP_FAIL;
     }
 
-    extract_text(root, response_buf, buf_size);
+    if (s_provider == LLM_PROVIDER_KIMI) {
+        extract_text_openai(root, response_buf, buf_size);
+    } else {
+        extract_text_anthropic(root, response_buf, buf_size);
+    }
     cJSON_Delete(root);
 
     if (response_buf[0] == '\0') {
-        snprintf(response_buf, buf_size, "No response from Claude API");
+        snprintf(response_buf, buf_size, "No response from %s API",
+                 llm_get_provider_name());
     } else {
-        ESP_LOGI(TAG, "Claude response: %d bytes", (int)strlen(response_buf));
+        ESP_LOGI(TAG, "%s response: %d bytes",
+                 llm_get_provider_name(), (int)strlen(response_buf));
     }
 
     return ESP_OK;
 }
 
-/* ── Public: chat with tools (non-streaming) ──────────────────── */
+/* ── Public: chat avec tools (non-streaming) ──────────────────── */
 
 void llm_response_free(llm_response_t *resp)
 {
@@ -330,21 +654,38 @@ esp_err_t llm_chat_tools(const char *system_prompt,
 
     if (s_api_key[0] == '\0') return ESP_ERR_INVALID_STATE;
 
-    /* Build request body (non-streaming) */
     cJSON *body = cJSON_CreateObject();
     cJSON_AddStringToObject(body, "model", s_model);
     cJSON_AddNumberToObject(body, "max_tokens", MIMI_LLM_MAX_TOKENS);
-    cJSON_AddStringToObject(body, "system", system_prompt);
 
-    /* Deep-copy messages so caller keeps ownership */
-    cJSON *msgs_copy = cJSON_Duplicate(messages, 1);
-    cJSON_AddItemToObject(body, "messages", msgs_copy);
+    if (s_provider == LLM_PROVIDER_KIMI) {
+        /* ── Format OpenAI/Kimi ── */
+        cJSON *oai_msgs = translate_messages_to_openai(system_prompt, messages);
+        cJSON_AddItemToObject(body, "messages", oai_msgs);
 
-    /* Add tools array if provided */
-    if (tools_json) {
-        cJSON *tools = cJSON_Parse(tools_json);
-        if (tools) {
-            cJSON_AddItemToObject(body, "tools", tools);
+        if (tools_json) {
+            char *oai_tools_str = translate_tools_to_openai(tools_json);
+            if (oai_tools_str) {
+                cJSON *oai_tools = cJSON_Parse(oai_tools_str);
+                if (oai_tools) {
+                    cJSON_AddItemToObject(body, "tools", oai_tools);
+                    cJSON_AddStringToObject(body, "tool_choice", "auto");
+                }
+                free(oai_tools_str);
+            }
+        }
+    } else {
+        /* ── Format Anthropic ── */
+        cJSON_AddStringToObject(body, "system", system_prompt);
+
+        cJSON *msgs_copy = cJSON_Duplicate(messages, 1);
+        cJSON_AddItemToObject(body, "messages", msgs_copy);
+
+        if (tools_json) {
+            cJSON *tools = cJSON_Parse(tools_json);
+            if (tools) {
+                cJSON_AddItemToObject(body, "tools", tools);
+            }
         }
     }
 
@@ -352,10 +693,10 @@ esp_err_t llm_chat_tools(const char *system_prompt,
     cJSON_Delete(body);
     if (!post_data) return ESP_ERR_NO_MEM;
 
-    ESP_LOGI(TAG, "Calling Claude API with tools (model: %s, body: %d bytes)",
-             s_model, (int)strlen(post_data));
+    ESP_LOGI(TAG, "Calling %s API with tools (model: %s, body: %d bytes)",
+             llm_get_provider_name(), s_model, (int)strlen(post_data));
 
-    /* HTTP call */
+    /* Appel HTTP */
     resp_buf_t rb;
     if (resp_buf_init(&rb, MIMI_LLM_STREAM_BUF_SIZE) != ESP_OK) {
         free(post_data);
@@ -378,7 +719,7 @@ esp_err_t llm_chat_tools(const char *system_prompt,
         return ESP_FAIL;
     }
 
-    /* Parse full JSON response */
+    /* Parse JSON */
     cJSON *root = cJSON_Parse(rb.data);
     resp_buf_free(&rb);
 
@@ -387,73 +728,74 @@ esp_err_t llm_chat_tools(const char *system_prompt,
         return ESP_FAIL;
     }
 
-    /* stop_reason */
-    cJSON *stop_reason = cJSON_GetObjectItem(root, "stop_reason");
-    if (stop_reason && cJSON_IsString(stop_reason)) {
-        resp->tool_use = (strcmp(stop_reason->valuestring, "tool_use") == 0);
-    }
-
-    /* Iterate content blocks */
-    cJSON *content = cJSON_GetObjectItem(root, "content");
-    if (content && cJSON_IsArray(content)) {
-        /* Accumulate total text length first */
-        size_t total_text = 0;
-        cJSON *block;
-        cJSON_ArrayForEach(block, content) {
-            cJSON *btype = cJSON_GetObjectItem(block, "type");
-            if (btype && strcmp(btype->valuestring, "text") == 0) {
-                cJSON *text = cJSON_GetObjectItem(block, "text");
-                if (text && cJSON_IsString(text)) {
-                    total_text += strlen(text->valuestring);
-                }
-            }
+    if (s_provider == LLM_PROVIDER_KIMI) {
+        /* ── Parse format OpenAI ── */
+        parse_openai_response(root, resp);
+    } else {
+        /* ── Parse format Anthropic ── */
+        cJSON *stop_reason = cJSON_GetObjectItem(root, "stop_reason");
+        if (stop_reason && cJSON_IsString(stop_reason)) {
+            resp->tool_use = (strcmp(stop_reason->valuestring, "tool_use") == 0);
         }
 
-        /* Allocate and copy text */
-        if (total_text > 0) {
-            resp->text = calloc(1, total_text + 1);
-            if (resp->text) {
-                cJSON_ArrayForEach(block, content) {
-                    cJSON *btype = cJSON_GetObjectItem(block, "type");
-                    if (!btype || strcmp(btype->valuestring, "text") != 0) continue;
+        cJSON *content = cJSON_GetObjectItem(root, "content");
+        if (content && cJSON_IsArray(content)) {
+            /* Accumuler la taille totale du texte */
+            size_t total_text = 0;
+            cJSON *block;
+            cJSON_ArrayForEach(block, content) {
+                cJSON *btype = cJSON_GetObjectItem(block, "type");
+                if (btype && strcmp(btype->valuestring, "text") == 0) {
                     cJSON *text = cJSON_GetObjectItem(block, "text");
-                    if (!text || !cJSON_IsString(text)) continue;
-                    size_t tlen = strlen(text->valuestring);
-                    memcpy(resp->text + resp->text_len, text->valuestring, tlen);
-                    resp->text_len += tlen;
-                }
-                resp->text[resp->text_len] = '\0';
-            }
-        }
-
-        /* Extract tool_use blocks */
-        cJSON_ArrayForEach(block, content) {
-            cJSON *btype = cJSON_GetObjectItem(block, "type");
-            if (!btype || strcmp(btype->valuestring, "tool_use") != 0) continue;
-            if (resp->call_count >= MIMI_MAX_TOOL_CALLS) break;
-
-            llm_tool_call_t *call = &resp->calls[resp->call_count];
-
-            cJSON *id = cJSON_GetObjectItem(block, "id");
-            if (id && cJSON_IsString(id)) {
-                strncpy(call->id, id->valuestring, sizeof(call->id) - 1);
-            }
-
-            cJSON *name = cJSON_GetObjectItem(block, "name");
-            if (name && cJSON_IsString(name)) {
-                strncpy(call->name, name->valuestring, sizeof(call->name) - 1);
-            }
-
-            cJSON *input = cJSON_GetObjectItem(block, "input");
-            if (input) {
-                char *input_str = cJSON_PrintUnformatted(input);
-                if (input_str) {
-                    call->input = input_str;
-                    call->input_len = strlen(input_str);
+                    if (text && cJSON_IsString(text))
+                        total_text += strlen(text->valuestring);
                 }
             }
 
-            resp->call_count++;
+            /* Allouer et copier le texte */
+            if (total_text > 0) {
+                resp->text = calloc(1, total_text + 1);
+                if (resp->text) {
+                    cJSON_ArrayForEach(block, content) {
+                        cJSON *btype = cJSON_GetObjectItem(block, "type");
+                        if (!btype || strcmp(btype->valuestring, "text") != 0) continue;
+                        cJSON *text = cJSON_GetObjectItem(block, "text");
+                        if (!text || !cJSON_IsString(text)) continue;
+                        size_t tlen = strlen(text->valuestring);
+                        memcpy(resp->text + resp->text_len, text->valuestring, tlen);
+                        resp->text_len += tlen;
+                    }
+                    resp->text[resp->text_len] = '\0';
+                }
+            }
+
+            /* Extraire les blocs tool_use */
+            cJSON_ArrayForEach(block, content) {
+                cJSON *btype = cJSON_GetObjectItem(block, "type");
+                if (!btype || strcmp(btype->valuestring, "tool_use") != 0) continue;
+                if (resp->call_count >= MIMI_MAX_TOOL_CALLS) break;
+
+                llm_tool_call_t *call = &resp->calls[resp->call_count];
+
+                cJSON *id = cJSON_GetObjectItem(block, "id");
+                if (id && cJSON_IsString(id))
+                    strncpy(call->id, id->valuestring, sizeof(call->id) - 1);
+
+                cJSON *name = cJSON_GetObjectItem(block, "name");
+                if (name && cJSON_IsString(name))
+                    strncpy(call->name, name->valuestring, sizeof(call->name) - 1);
+
+                cJSON *input = cJSON_GetObjectItem(block, "input");
+                if (input) {
+                    char *input_str = cJSON_PrintUnformatted(input);
+                    if (input_str) {
+                        call->input = input_str;
+                        call->input_len = strlen(input_str);
+                    }
+                }
+
+                resp->call_count++;
+            }
         }
     }
 
@@ -492,4 +834,28 @@ esp_err_t llm_set_model(const char *model)
     strncpy(s_model, model, sizeof(s_model) - 1);
     ESP_LOGI(TAG, "Model set to: %s", s_model);
     return ESP_OK;
+}
+
+esp_err_t llm_set_provider(llm_provider_t provider)
+{
+    nvs_handle_t nvs;
+    ESP_ERROR_CHECK(nvs_open(MIMI_NVS_LLM, NVS_READWRITE, &nvs));
+    const char *val = (provider == LLM_PROVIDER_KIMI) ? "kimi" : "anthropic";
+    ESP_ERROR_CHECK(nvs_set_str(nvs, MIMI_NVS_KEY_PROVIDER, val));
+    ESP_ERROR_CHECK(nvs_commit(nvs));
+    nvs_close(nvs);
+
+    s_provider = provider;
+    ESP_LOGI(TAG, "Provider: %s", val);
+    return ESP_OK;
+}
+
+llm_provider_t llm_get_provider(void)
+{
+    return s_provider;
+}
+
+const char *llm_get_provider_name(void)
+{
+    return (s_provider == LLM_PROVIDER_KIMI) ? "Kimi" : "Anthropic";
 }

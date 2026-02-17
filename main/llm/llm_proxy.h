@@ -7,6 +7,12 @@
 
 #include "mimi_config.h"
 
+/* Fournisseur LLM */
+typedef enum {
+    LLM_PROVIDER_ANTHROPIC = 0,
+    LLM_PROVIDER_KIMI = 1,
+} llm_provider_t;
+
 /**
  * Initialize the LLM proxy. Reads API key and model from build-time secrets, then NVS.
  */
@@ -21,6 +27,13 @@ esp_err_t llm_set_api_key(const char *api_key);
  * Save the model identifier to NVS.
  */
 esp_err_t llm_set_model(const char *model);
+
+/**
+ * Definir/lire le fournisseur LLM (Anthropic ou Kimi).
+ */
+esp_err_t llm_set_provider(llm_provider_t provider);
+llm_provider_t llm_get_provider(void);
+const char *llm_get_provider_name(void);
 
 /**
  * Send a chat completion request to Anthropic Messages API (streaming).
