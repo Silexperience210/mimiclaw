@@ -733,7 +733,7 @@ static void draw_radar(void)
             fb_pixel(px, py, COL_RADAR_GRID);
         }
         /* Label distance */
-        char dist_label[8];
+        char dist_label[16];
         snprintf(dist_label, sizeof(dist_label), "%dm", dist_rings[r] / 100);
         fb_draw_string(cx + radius - 10, cy - 8, dist_label, COL_RADAR_GRID, 1);
     }
