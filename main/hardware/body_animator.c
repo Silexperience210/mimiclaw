@@ -3,6 +3,7 @@
 #include "hardware/ultrasonic.h"
 #include "hardware/sonar_radar.h"
 #include "input/gesture_detect.h"
+#include "power/battery_monitor.h"
 #include "mimi_config.h"
 
 #include "freertos/FreeRTOS.h"
@@ -393,6 +394,11 @@ static void run_celebrate(void)
 /* Joue une animation nommee (appele depuis tool_servo) */
 void body_animator_play(const char *name)
 {
+    /* Servos bloques pendant la charge */
+    if (battery_is_charging()) {
+        ESP_LOGW(TAG, "Animation '%s' bloquee : batterie en charge", name);
+        return;
+    }
     if (strcmp(name, "wave") == 0)           run_wave();
     else if (strcmp(name, "nod_yes") == 0)   run_nod_yes();
     else if (strcmp(name, "nod_no") == 0)    run_nod_no();
@@ -579,6 +585,12 @@ static void body_animator_task(void *arg)
 
     while (1) {
         s_tick++;
+
+        /* Servos desactives pendant la charge batterie */
+        if (battery_is_charging()) {
+            vTaskDelay(pdMS_TO_TICKS(500));
+            continue;
+        }
 
         /* Lecture ultrason */
         int dist = ultrasonic_read_cm();

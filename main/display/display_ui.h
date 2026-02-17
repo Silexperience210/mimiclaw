@@ -13,6 +13,7 @@ typedef enum {
     DISPLAY_SLEEP,        /* Ecran eteint */
     DISPLAY_RADAR,        /* Sonar radar en temps reel */
     DISPLAY_ETCHASKETCH,  /* Dessin sans contact */
+    DISPLAY_CHARGING,     /* Animation charge batterie */
 } display_state_t;
 
 /* Humeur du lobster (Tamagotchi) */

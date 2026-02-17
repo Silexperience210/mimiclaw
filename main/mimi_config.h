@@ -162,6 +162,16 @@
 #define MIMI_BTN_PRIO            5
 #define MIMI_BTN_CORE            0
 
+/* Batterie (T-Display S3 : ADC sur GPIO4, diviseur 1:2) */
+#define MIMI_BATT_ADC_PIN        4     /* GPIO4 = ADC1_CH3 sur ESP32-S3 */
+#define MIMI_BATT_ADC_CHANNEL    ADC_CHANNEL_3
+#define MIMI_BATT_DIVIDER_RATIO  2.0f  /* facteur du pont diviseur */
+#define MIMI_BATT_FULL_MV        4200  /* tension pleine charge (mV) */
+#define MIMI_BATT_EMPTY_MV       3000  /* tension batterie vide (mV) */
+#define MIMI_BATT_CHARGE_MV      4150  /* seuil detection charge (mV) */
+#define MIMI_BATT_POLL_MS        2000  /* lecture ADC toutes les 2s */
+#define MIMI_BATT_AVG_SAMPLES    8     /* moyenne glissante */
+
 /* Deep Sleep */
 #define MIMI_SLEEP_TIMEOUT_MS    (5 * 60 * 1000)
 #define MIMI_SLEEP_WAKEUP_PIN    14

@@ -3,6 +3,7 @@
 #include "lobster_sprite.h"
 #include "mimi_config.h"
 #include "ota/ota_manager.h"
+#include "power/battery_monitor.h"
 #ifdef MIMI_HAS_SERVOS
 #include "hardware/sonar_radar.h"
 #endif
@@ -136,6 +137,9 @@ static const uint8_t font5x7[] = {
 #define COL_BUBBLE   0x5D7F  /* bleu bulle clair */
 #define COL_STAR     0xFFE0  /* jaune etoile */
 #define COL_BANNER   0x18A3  /* gris fonce semi-transparent */
+#define COL_CHARGE   0x47E0  /* vert charge */
+#define COL_BOLT     0xFFE0  /* jaune eclair */
+#define COL_BATT_BG  0x2104  /* gris fonce contour batterie */
 
 /* ---- Etat interne ---- */
 static display_state_t s_state = DISPLAY_IDLE;
@@ -900,6 +904,143 @@ static void draw_etchasketch(void)
 }
 #endif /* MIMI_HAS_SERVOS */
 
+/* ---- Animation charge batterie ---- */
+
+static void draw_charging(void)
+{
+    fb_clear(COL_BG);
+
+    int percent = battery_get_percent();
+    int voltage = battery_get_voltage_mv();
+
+    /* Icone batterie centree — dimensions */
+    int batt_w = 120;   /* largeur corps batterie */
+    int batt_h = 60;    /* hauteur corps batterie */
+    int batt_x = (MIMI_DISP_WIDTH - batt_w) / 2;
+    int batt_y = 25;
+    int tip_w = 8;      /* borne positive */
+    int tip_h = 24;
+
+    /* Contour batterie (blanc) */
+    /* Haut */
+    fb_fill_rect(batt_x, batt_y, batt_w, 3, COL_TEXT);
+    /* Bas */
+    fb_fill_rect(batt_x, batt_y + batt_h - 3, batt_w, 3, COL_TEXT);
+    /* Gauche */
+    fb_fill_rect(batt_x, batt_y, 3, batt_h, COL_TEXT);
+    /* Droite */
+    fb_fill_rect(batt_x + batt_w - 3, batt_y, 3, batt_h, COL_TEXT);
+    /* Borne positive (a droite) */
+    fb_fill_rect(batt_x + batt_w, batt_y + (batt_h - tip_h) / 2,
+                 tip_w, tip_h, COL_TEXT);
+
+    /* Interieur : fond sombre */
+    int inner_x = batt_x + 5;
+    int inner_y = batt_y + 5;
+    int inner_w = batt_w - 10;
+    int inner_h = batt_h - 10;
+    fb_fill_rect(inner_x, inner_y, inner_w, inner_h, COL_BATT_BG);
+
+    /* Remplissage anime — pulse doux pour simuler la charge */
+    int base_fill = percent * inner_w / 100;
+
+    /* Animation pulse : le remplissage "respire" un peu */
+    int pulse = 0;
+    if (percent < 100) {
+        /* Sinusoide lente : ±5 pixels */
+        int phase = (s_frame_count * 3) % 60;
+        if (phase < 30)
+            pulse = phase / 6;
+        else
+            pulse = (60 - phase) / 6;
+    }
+    int fill_w = base_fill + pulse;
+    if (fill_w > inner_w) fill_w = inner_w;
+    if (fill_w < 0) fill_w = 0;
+
+    /* Couleur de remplissage selon niveau */
+    uint16_t fill_col;
+    if (percent < 20)
+        fill_col = COL_RED;       /* critique = rouge */
+    else if (percent < 50)
+        fill_col = COL_ACCENT;    /* moyen = orange */
+    else
+        fill_col = COL_CHARGE;    /* bon = vert */
+
+    /* Dessiner le remplissage */
+    if (fill_w > 0) {
+        fb_fill_rect(inner_x, inner_y, fill_w, inner_h, fill_col);
+    }
+
+    /* Segments de separation (style batterie) */
+    for (int i = 1; i < 4; i++) {
+        int seg_x = inner_x + i * inner_w / 4;
+        fb_fill_rect(seg_x, inner_y, 1, inner_h, COL_BATT_BG);
+    }
+
+    /* Eclair anime au centre de la batterie (clignotant) */
+    if ((s_frame_count / 4) % 3 != 0) {  /* visible 2/3 du temps */
+        int lx = batt_x + batt_w / 2 - 6;
+        int ly = batt_y + 8;
+        /* Eclair simplifie en forme de Z */
+        /*   ##
+         *  ##
+         * ####
+         *   ##
+         *  ##
+         */
+        fb_fill_rect(lx + 4, ly,      8, 3, COL_BOLT);
+        fb_fill_rect(lx + 2, ly + 3,  8, 3, COL_BOLT);
+        fb_fill_rect(lx,     ly + 6,  12, 3, COL_BOLT);
+        fb_fill_rect(lx + 2, ly + 9,  8, 3, COL_BOLT);
+        fb_fill_rect(lx,     ly + 12, 8, 3, COL_BOLT);
+
+        /* Contour sombre pour contraste */
+        fb_fill_rect(lx + 3, ly - 1,   10, 1, COL_BG);
+        fb_fill_rect(lx - 1, ly + 15,  10, 1, COL_BG);
+    }
+
+    /* Pourcentage en gros sous la batterie */
+    char pct_str[16];
+    snprintf(pct_str, sizeof(pct_str), "%d%%", percent);
+    int pct_len = 0;
+    const char *p = pct_str;
+    while (*p) { pct_len++; p++; }
+    int pct_x = (MIMI_DISP_WIDTH - pct_len * 12) / 2;  /* scale 2 = 12px/char */
+    fb_draw_string(pct_x, batt_y + batt_h + 12, pct_str, COL_TEXT, 2);
+
+    /* Tension en petit sous le pourcentage */
+    char volt_str[24];
+    snprintf(volt_str, sizeof(volt_str), "%d.%02dV", voltage / 1000, (voltage % 1000) / 10);
+    int volt_len = 0;
+    const char *v = volt_str;
+    while (*v) { volt_len++; v++; }
+    int volt_x = (MIMI_DISP_WIDTH - volt_len * 6) / 2;
+    fb_draw_string(volt_x, batt_y + batt_h + 34, volt_str, COL_DIM, 1);
+
+    /* Texte "Charge..." anime en haut */
+    int dots = (s_frame_count / 5) % 4;
+    char charge_text[16] = "Charge";
+    for (int i = 0; i < dots; i++) strcat(charge_text, ".");
+    int ct_len = 0;
+    const char *c = charge_text;
+    while (*c) { ct_len++; c++; }
+    int ct_x = (MIMI_DISP_WIDTH - ct_len * 12) / 2;
+    fb_draw_string(ct_x, 6, charge_text, COL_CHARGE, 2);
+
+    /* Petites particules qui montent (effet charge) */
+    for (int i = 0; i < 5; i++) {
+        int px = inner_x + fill_w - 3 + (i * 7) % 12;
+        int py_base = inner_y + inner_h;
+        int py = py_base - ((s_frame_count * 2 + i * 8) % (inner_h + 15));
+        if (py >= inner_y && py < inner_y + inner_h && fill_w > 10) {
+            fb_pixel(px, py, COL_TEXT);
+            fb_pixel(px + 1, py, COL_TEXT);
+            fb_pixel(px, py - 1, COL_TEXT);
+        }
+    }
+}
+
 /* ---- Notification banner (slide depuis le bas) ---- */
 
 static void draw_banner(void)
@@ -1082,8 +1223,8 @@ static void display_task(void *arg)
         /* Mise a jour humeur automatique */
         update_mood_auto();
 
-        /* Check screensaver : idle depuis > 60s */
-        if (state == DISPLAY_IDLE) {
+        /* Check screensaver : idle depuis > 60s (pas en charge) */
+        if (state == DISPLAY_IDLE && !battery_is_charging()) {
             int64_t idle_ms = (esp_timer_get_time() - s_last_activity_us) / 1000;
             if (idle_ms > MIMI_DISP_SCREENSAVER_MS) {
                 xSemaphoreTake(s_mutex, portMAX_DELAY);
@@ -1132,6 +1273,9 @@ static void display_task(void *arg)
             draw_etchasketch();
             break;
 #endif
+        case DISPLAY_CHARGING:
+            draw_charging();
+            break;
         case DISPLAY_SLEEP:
             vTaskDelay(pdMS_TO_TICKS(1000));
             s_frame_count++;
@@ -1154,6 +1298,8 @@ static void display_task(void *arg)
             fps = MIMI_DISP_FPS_SCREENSAVER;
         else if (state == DISPLAY_ETCHASKETCH)
             fps = MIMI_DISP_FPS_ACTIVE;
+        else if (state == DISPLAY_CHARGING)
+            fps = MIMI_DISP_FPS_SCREENSAVER;  /* 6fps suffisant pour l'animation */
 
         vTaskDelay(pdMS_TO_TICKS(1000 / fps));
     }
@@ -1181,11 +1327,12 @@ void display_ui_set_state(display_state_t state)
     if (s_state != state) {
         display_state_t old_state = s_state;
 
-        /* Transition wipe sauf vers/depuis sleep, radar, etch */
+        /* Transition wipe sauf vers/depuis sleep, radar, etch, charge */
         if (state != DISPLAY_SLEEP && old_state != DISPLAY_SLEEP
             && state != DISPLAY_SCREENSAVER && old_state != DISPLAY_SCREENSAVER
             && state != DISPLAY_RADAR && old_state != DISPLAY_RADAR
-            && state != DISPLAY_ETCHASKETCH && old_state != DISPLAY_ETCHASKETCH) {
+            && state != DISPLAY_ETCHASKETCH && old_state != DISPLAY_ETCHASKETCH
+            && state != DISPLAY_CHARGING && old_state != DISPLAY_CHARGING) {
             s_transitioning = true;
             s_transition_frame = 0;
             s_transition_target = state;
@@ -1244,6 +1391,7 @@ void display_ui_next_screen(void)
     case DISPLAY_SCREENSAVER: s_state = DISPLAY_IDLE;        break;
     case DISPLAY_RADAR:       s_state = DISPLAY_IDLE;        break;
     case DISPLAY_ETCHASKETCH: s_state = DISPLAY_IDLE;        break;
+    case DISPLAY_CHARGING:    s_state = DISPLAY_CHARGING;    break; /* reste en charge */
     default: break;
     }
     s_frame_count = 0;
