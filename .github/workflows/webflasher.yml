@@ -104,8 +104,22 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Sauvegarder les firmwares avant reset
+          mkdir -p /tmp/fw_out
+          cp -r docs/firmware/ /tmp/fw_out/
+          cp docs/manifest-v1.json docs/manifest-v1.2.json docs/manifest-v1.3.json /tmp/fw_out/
+
+          # Se baser sur le dernier main (evite les conflits si des commits sont arrives pendant le build)
+          git fetch origin main
+          git reset --hard origin/main
+
+          # Restaurer les firmwares
+          cp -r /tmp/fw_out/firmware/ docs/
+          cp /tmp/fw_out/manifest-*.json docs/
+
+          # Commit et push
           git add -f docs/firmware/ docs/manifest-v1.json docs/manifest-v1.2.json docs/manifest-v1.3.json
           git diff --cached --quiet && echo "No changes to commit" && exit 0
           git commit -m "chore: update firmware v1 + v1.2 + v1.3 (${GITHUB_REF_NAME:-manual})"
-          git pull --rebase origin main || true
           git push origin HEAD:main
