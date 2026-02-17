@@ -1136,6 +1136,8 @@ static void display_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(1000));
             s_frame_count++;
             continue;
+        default:
+            break;
         }
 
         /* Banner par-dessus tout */
