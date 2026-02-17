@@ -47,15 +47,20 @@ jobs:
           idf.py set-target esp32s3
           idf.py build
 
+      - name: Stage firmware binaries
+        shell: bash
+        run: |
+          mkdir -p output
+          cp build/bootloader/bootloader.bin          output/bootloader.bin
+          cp build/partition_table/partition-table.bin output/partition-table.bin
+          cp build/ota_data_initial.bin                output/ota_data_initial.bin
+          cp build/mimiclaw.bin                        output/mimiclaw.bin
+
       - name: Upload firmware ${{ matrix.variant }}
         uses: actions/upload-artifact@v4
         with:
           name: firmware-${{ matrix.variant }}
-          path: |
-            build/bootloader/bootloader.bin
-            build/partition_table/partition-table.bin
-            build/ota_data_initial.bin
-            build/mimiclaw.bin
+          path: output/
           retention-days: 1
 
   # ── Job 2 : assembler et pousser les firmwares ──
@@ -79,10 +84,10 @@ jobs:
         run: |
           for variant in v1 v1.2 v1.3; do
             mkdir -p docs/firmware/$variant
-            cp artifacts/firmware-$variant/build/bootloader/bootloader.bin          docs/firmware/$variant/
-            cp artifacts/firmware-$variant/build/partition_table/partition-table.bin docs/firmware/$variant/
-            cp artifacts/firmware-$variant/build/ota_data_initial.bin               docs/firmware/$variant/
-            cp artifacts/firmware-$variant/build/mimiclaw.bin                       docs/firmware/$variant/
+            cp artifacts/firmware-$variant/bootloader.bin      docs/firmware/$variant/
+            cp artifacts/firmware-$variant/partition-table.bin  docs/firmware/$variant/
+            cp artifacts/firmware-$variant/ota_data_initial.bin docs/firmware/$variant/
+            cp artifacts/firmware-$variant/mimiclaw.bin         docs/firmware/$variant/
           done
 
       - name: Generate manifests
