@@ -9,7 +9,7 @@
  *           pupilles=#000000 (0x0000), fond=transparent (0x0000)
  *
  * Frames :
- * - lobster_idle    : yeux ouverts, pinces en bas
+ * - lobster_idle    : yeux ouverts, pinces en V (ouvertes)
  * - lobster_blink   : yeux fermes
  * - lobster_think1  : pinces levees, yeux a gauche
  * - lobster_think2  : pinces levees, yeux a droite
@@ -33,13 +33,13 @@
  * Total 5 frames = ~10 KB flash — negligeable. */
 
 static const uint16_t lobster_idle[LOBSTER_W * LOBSTER_H] = {
-    /* Ligne 0-3 : pinces gauche et droite */
-    C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,
-    C_BG,C_BG,C_OR,C_LO,C_LO,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_LO,C_LO,C_OR,C_BG,C_BG,C_BG,
-    C_BG,C_OR,C_LO,C_BG,C_BG,C_LO,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_LO,C_BG,C_BG,C_LO,C_OR,C_BG,C_BG,
-    C_BG,C_OR,C_OR,C_LO,C_LO,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_LO,C_LO,C_OR,C_OR,C_BG,C_BG,
-    /* Ligne 4-5 : bras */
-    C_BG,C_BG,C_OR,C_OR,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_OR,C_OR,C_BG,C_BG,C_BG,
+    /* Ligne 0-2 : pinces en V (doigts ouverts) */
+    C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,
+    C_OR,C_LO,C_OR,C_BG,C_BG,C_OR,C_LO,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_LO,C_OR,C_BG,C_BG,C_OR,C_LO,C_OR,C_BG,C_BG,
+    C_OR,C_LO,C_BG,C_BG,C_BG,C_BG,C_LO,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_LO,C_BG,C_BG,C_BG,C_BG,C_LO,C_OR,C_BG,C_BG,
+    /* Ligne 3-4 : doigts convergent vers la paume */
+    C_BG,C_OR,C_LO,C_BG,C_BG,C_LO,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_LO,C_BG,C_BG,C_LO,C_OR,C_BG,C_BG,C_BG,
+    C_BG,C_BG,C_OR,C_LO,C_LO,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_LO,C_LO,C_OR,C_BG,C_BG,C_BG,C_BG,
     C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,
     /* Ligne 6-7 : bras vers le corps */
     C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,
@@ -80,12 +80,12 @@ static const uint16_t lobster_idle[LOBSTER_W * LOBSTER_H] = {
 
 /* Frame blink : yeux fermes (lignes 11-13 modifiees — yeux = traits horizontaux) */
 static const uint16_t lobster_blink[LOBSTER_W * LOBSTER_H] = {
-    /* Lignes 0-10 identiques a idle */
-    C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,
-    C_BG,C_BG,C_OR,C_LO,C_LO,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_LO,C_LO,C_OR,C_BG,C_BG,C_BG,
-    C_BG,C_OR,C_LO,C_BG,C_BG,C_LO,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_LO,C_BG,C_BG,C_LO,C_OR,C_BG,C_BG,
-    C_BG,C_OR,C_OR,C_LO,C_LO,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_LO,C_LO,C_OR,C_OR,C_BG,C_BG,
-    C_BG,C_BG,C_OR,C_OR,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_OR,C_OR,C_BG,C_BG,C_BG,
+    /* Lignes 0-4 identiques a idle (pinces en V) */
+    C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,
+    C_OR,C_LO,C_OR,C_BG,C_BG,C_OR,C_LO,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_LO,C_OR,C_BG,C_BG,C_OR,C_LO,C_OR,C_BG,C_BG,
+    C_OR,C_LO,C_BG,C_BG,C_BG,C_BG,C_LO,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_LO,C_BG,C_BG,C_BG,C_BG,C_LO,C_OR,C_BG,C_BG,
+    C_BG,C_OR,C_LO,C_BG,C_BG,C_LO,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_LO,C_BG,C_BG,C_LO,C_OR,C_BG,C_BG,C_BG,
+    C_BG,C_BG,C_OR,C_LO,C_LO,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_LO,C_LO,C_OR,C_BG,C_BG,C_BG,C_BG,
     C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,
     C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,
     C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,C_OR,C_OR,C_BG,C_BG,C_BG,C_BG,C_BG,C_BG,
