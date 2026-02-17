@@ -14,10 +14,54 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-commit:
+  # ── Job 1 : compiler les 3 variantes EN PARALLELE ──
+  build:
     runs-on: ubuntu-latest
     container:
       image: espressif/idf:v5.5.2
+
+    strategy:
+      matrix:
+        include:
+          - variant: v1
+            label: "Base (sans ecran)"
+            sdkconfig_extra: ""
+          - variant: v1.2
+            label: "Display (T-Display S3)"
+            sdkconfig_extra: "CONFIG_MIMI_HAS_DISPLAY=y"
+          - variant: v1.3
+            label: "Full (ecran + HC-SR04 + servos)"
+            sdkconfig_extra: "CONFIG_MIMI_HAS_DISPLAY=y\nCONFIG_MIMI_HAS_SERVOS=y"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build ${{ matrix.variant }} (${{ matrix.label }})
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          if [ -n "${{ matrix.sdkconfig_extra }}" ]; then
+            printf "${{ matrix.sdkconfig_extra }}" >> sdkconfig.defaults
+          fi
+          idf.py set-target esp32s3
+          idf.py build
+
+      - name: Upload firmware ${{ matrix.variant }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.variant }}
+          path: |
+            build/bootloader/bootloader.bin
+            build/partition_table/partition-table.bin
+            build/ota_data_initial.bin
+            build/mimiclaw.bin
+          retention-days: 1
+
+  # ── Job 2 : assembler et pousser les firmwares ──
+  commit:
+    needs: build
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -25,47 +69,21 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build v1 (sans ecran)
-        shell: bash
-        run: |
-          . $IDF_PATH/export.sh
-          idf.py set-target esp32s3
-          idf.py build
-          mkdir -p docs/firmware/v1
-          cp build/bootloader/bootloader.bin           docs/firmware/v1/
-          cp build/partition_table/partition-table.bin  docs/firmware/v1/
-          cp build/ota_data_initial.bin                 docs/firmware/v1/
-          cp build/mimiclaw.bin                         docs/firmware/v1/
+      - name: Download all firmware artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
 
-      - name: Build v1.2 (avec ecran T-Display S3)
+      - name: Assemble firmware directory
         shell: bash
         run: |
-          . $IDF_PATH/export.sh
-          idf.py fullclean
-          echo "CONFIG_MIMI_HAS_DISPLAY=y" >> sdkconfig.defaults
-          idf.py set-target esp32s3
-          idf.py build
-          mkdir -p docs/firmware/v1.2
-          cp build/bootloader/bootloader.bin           docs/firmware/v1.2/
-          cp build/partition_table/partition-table.bin  docs/firmware/v1.2/
-          cp build/ota_data_initial.bin                 docs/firmware/v1.2/
-          cp build/mimiclaw.bin                         docs/firmware/v1.2/
-
-      - name: Build v1.3 (ecran + HC-SR04 + servos)
-        shell: bash
-        run: |
-          . $IDF_PATH/export.sh
-          idf.py fullclean
-          # sdkconfig.defaults a deja CONFIG_MIMI_HAS_DISPLAY=y du step v1.2
-          # On ajoute juste SERVOS
-          echo "CONFIG_MIMI_HAS_SERVOS=y" >> sdkconfig.defaults
-          idf.py set-target esp32s3
-          idf.py build
-          mkdir -p docs/firmware/v1.3
-          cp build/bootloader/bootloader.bin           docs/firmware/v1.3/
-          cp build/partition_table/partition-table.bin  docs/firmware/v1.3/
-          cp build/ota_data_initial.bin                 docs/firmware/v1.3/
-          cp build/mimiclaw.bin                         docs/firmware/v1.3/
+          for variant in v1 v1.2 v1.3; do
+            mkdir -p docs/firmware/$variant
+            cp artifacts/firmware-$variant/build/bootloader/bootloader.bin          docs/firmware/$variant/
+            cp artifacts/firmware-$variant/build/partition_table/partition-table.bin docs/firmware/$variant/
+            cp artifacts/firmware-$variant/build/ota_data_initial.bin               docs/firmware/$variant/
+            cp artifacts/firmware-$variant/build/mimiclaw.bin                       docs/firmware/$variant/
+          done
 
       - name: Generate manifests
         shell: bash
@@ -74,9 +92,9 @@ jobs:
           python3 -c "
           import json
           variants = [
-              ('v1',   'LilyClaw v1 (sans ecran)'),
-              ('v1.2', 'LilyClaw v1.2 (T-Display S3 + ecran)'),
-              ('v1.3', 'LilyClaw v1.3 (ecran + HC-SR04 + servos)'),
+              ('v1',   'LilyClaw Base (sans ecran)'),
+              ('v1.2', 'LilyClaw Display (T-Display S3)'),
+              ('v1.3', 'LilyClaw Full (ecran + HC-SR04 + servos)'),
           ]
           for v, name in variants:
               m = {
@@ -101,25 +119,14 @@ jobs:
       - name: Commit and push firmware binaries
         shell: bash
         run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Sauvegarder les firmwares avant reset
-          mkdir -p /tmp/fw_out
-          cp -r docs/firmware/ /tmp/fw_out/
-          cp docs/manifest-v1.json docs/manifest-v1.2.json docs/manifest-v1.3.json /tmp/fw_out/
-
-          # Se baser sur le dernier main (evite les conflits si des commits sont arrives pendant le build)
+          # Se baser sur le dernier main
           git fetch origin main
-          git reset --hard origin/main
+          git reset --soft origin/main
 
-          # Restaurer les firmwares
-          cp -r /tmp/fw_out/firmware/ docs/
-          cp /tmp/fw_out/manifest-*.json docs/
-
-          # Commit et push
           git add -f docs/firmware/ docs/manifest-v1.json docs/manifest-v1.2.json docs/manifest-v1.3.json
           git diff --cached --quiet && echo "No changes to commit" && exit 0
-          git commit -m "chore: update firmware v1 + v1.2 + v1.3 (${GITHUB_REF_NAME:-manual})"
+          git commit -m "chore: update firmware Base + Display + Full (${GITHUB_REF_NAME:-manual})"
           git push origin HEAD:main
