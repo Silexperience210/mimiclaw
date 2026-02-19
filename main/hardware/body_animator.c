@@ -22,6 +22,25 @@ static int s_last_distance     = -1;
 static bool s_presence_active  = false;
 static uint32_t s_tick         = 0;
 
+/* Variables pour les nouvelles fonctionnalités - volatile car accedees depuis interruptions/timer */
+static volatile uint32_t s_next_blink_tick = 0;
+static volatile bool s_is_blinking = false;
+static volatile uint32_t s_blink_end_tick = 0;
+static volatile int s_gaze_target_h = 90;
+static volatile int s_gaze_target_v = 90;
+static volatile int s_gaze_current_h = 90;
+static volatile int s_gaze_current_v = 90;
+static volatile uint32_t s_next_saccade_tick = 0;
+static volatile bool s_gaze_fixated = false;
+static volatile uint32_t s_fixation_end_tick = 0;
+static volatile uint32_t s_last_seen_tick = 0;
+static volatile bool s_has_forgotten = true;
+static volatile float s_mood_level = 0.0f;
+static volatile lobster_mood_t s_target_mood = MOOD_NEUTRAL;
+static volatile uint32_t s_next_autonomous_action = 0;
+static volatile bool s_is_yawning = false;
+static volatile uint32_t s_yawn_end_tick = 0;
+
 /* Tracking : angle cible de la tete pendant le scan */
 static int s_scan_target_h     = 90;  /* angle H ou l'objet est le plus proche */
 static int s_scan_dir          = 1;   /* direction du balayage (+1/-1) */
@@ -36,6 +55,15 @@ static int s_dist_idx          = 0;
 
 /* Dernier geste detecte (pour actions) */
 static gesture_t s_last_gesture = GESTURE_NONE;
+
+/* --- Helpers --- */
+
+static uint8_t clamp_angle(int a)
+{
+    if (a < 0)   return 0;
+    if (a > 180) return 180;
+    return (uint8_t)a;
+}
 
 /* --- NOUVEAUX : Personnalite vivante --- */
 
@@ -107,9 +135,7 @@ static uint8_t breathe_emotional(uint8_t center)
 }
 
 /* 2. Micro-expressions : clignements et sourcils */
-static uint32_t s_next_blink_tick = 0;
-static bool s_is_blinking = false;
-static uint32_t s_blink_end_tick = 0;
+/* Variables deja declarees en haut du fichier (volatile) */
 
 static void update_blink_schedule(void)
 {
@@ -134,13 +160,7 @@ static uint8_t apply_blink(uint8_t claw_angle)
 }
 
 /* 3. Regard vivant avec micro-mouvements et saccades */
-static int s_gaze_target_h = 90;
-static int s_gaze_target_v = 90;
-static int s_gaze_current_h = 90;
-static int s_gaze_current_v = 90;
-static uint32_t s_next_saccade_tick = 0;
-static bool s_gaze_fixated = false;
-static uint32_t s_fixation_end_tick = 0;
+/* Variables deja declarees en haut du fichier (volatile) */
 
 static void update_living_gaze(void)
 {
@@ -174,8 +194,7 @@ static void update_living_gaze(void)
 }
 
 /* 4. Memoire d'attention avec "oubli" progressif */
-static uint32_t s_last_seen_tick = 0;
-static bool s_has_forgotten = true;
+/* Variables deja declarees en haut du fichier (volatile) */
 
 static void update_attention_memory(bool person_present)
 {
@@ -198,8 +217,7 @@ static void update_attention_memory(bool person_present)
 }
 
 /* 5. Humeur degradee avec transitions fluides */
-static float s_mood_level = 0.0f; /* -1.0 = triste, 0 = neutre, 1.0 = joyeux */
-static lobster_mood_t s_target_mood = MOOD_NEUTRAL;
+/* Variables deja declarees en haut du fichier (volatile) */
 
 static void update_mood_transition(void)
 {
@@ -231,9 +249,7 @@ void body_animator_set_mood(lobster_mood_t mood)
 }
 
 /* 6. Comportements autonomes */
-static uint32_t s_next_autonomous_action = 0;
-static bool s_is_yawning = false;
-static uint32_t s_yawn_end_tick = 0;
+/* Variables deja declarees en haut du fichier (volatile) */
 
 static void handle_autonomous_behaviors(bool person_present)
 {

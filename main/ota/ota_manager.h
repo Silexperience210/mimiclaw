@@ -3,12 +3,14 @@
 #include "esp_err.h"
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 /* Info sur une mise a jour disponible */
 typedef struct {
     bool available;       /* true si une version plus recente existe */
     char version[16];     /* ex: "1.3.2" */
     char url[256];        /* URL de telechargement du .bin */
+    char sha256_hash[65]; /* Hash SHA256 du firmware (si disponible) */
 } ota_update_info_t;
 
 /**
@@ -37,3 +39,20 @@ esp_err_t ota_check_update(ota_update_info_t *info);
  * @return ESP_OK si succes (device reboote), erreur sinon
  */
 esp_err_t ota_update_from_url(const char *url);
+
+/**
+ * Verifie si un rollback est possible (version precedente disponible).
+ */
+bool ota_can_rollback(void);
+
+/**
+ * Effectue un rollback vers la version precedente.
+ * Reboot automatiquement.
+ */
+esp_err_t ota_rollback(void);
+
+/**
+ * Marque le firmware actuel comme valide (appeler apres un boot reussi).
+ * Annule le rollback automatique.
+ */
+void ota_mark_valid(void);

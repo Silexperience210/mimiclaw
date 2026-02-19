@@ -22,6 +22,7 @@
 #include "proxy/http_proxy.h"
 #include "tools/tool_registry.h"
 #include "portal/captive_portal.h"
+#include "ota/ota_manager.h"
 #ifdef MIMI_HAS_DISPLAY
 #include "display/display_hal.h"
 #include "display/display_ui.h"
@@ -102,7 +103,11 @@ void app_main(void)
 
     ESP_LOGI(TAG, "========================================");
     ESP_LOGI(TAG, "  MimiClaw - ESP32-S3 AI Agent");
+    ESP_LOGI(TAG, "  Version: v%s (%s)", ota_get_version(), ota_get_variant());
     ESP_LOGI(TAG, "========================================");
+
+    /* Mark firmware as valid after successful boot (OTA rollback protection) */
+    ota_mark_valid();
 
     /* Print memory info */
     ESP_LOGI(TAG, "Internal free: %d bytes",
