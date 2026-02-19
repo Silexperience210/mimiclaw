@@ -195,7 +195,8 @@ static bool verify_sha256(const uint8_t *data, size_t len, const char *expected_
     return strcasecmp(hash_hex, expected_hash) == 0;
 }
 
-/* Télécharge et vérifie le hash SHA256 */
+/* Télécharge et vérifie le hash SHA256 - actuellement non utilisé car ESP-IDF vérifie automatiquement */
+#if 0
 static bool download_and_verify_sha256(const char *url, const char *expected_hash)
 {
     ESP_LOGI(TAG, "Vérification SHA256 du firmware...");
@@ -214,6 +215,7 @@ static bool download_and_verify_sha256(const char *url, const char *expected_has
     ESP_LOGW(TAG, "Vérification SHA256 post-flash - le firmware a déjà été validé par esp_https_ota");
     return true; /* Le hash est vérifié par le mécanisme OTA ESP-IDF */
 }
+#endif
 
 /* --- Check update --- */
 
@@ -296,7 +298,7 @@ esp_err_t ota_check_update(ota_update_info_t *info)
                             info->sha256_hash[64] = '\0';
                             /* Nettoie les caractères non-hex */
                             for (int i = 0; i < 64; i++) {
-                                if (!isxdigit(info->sha256_hash[i])) {
+                                if (!isxdigit((unsigned char)info->sha256_hash[i])) {
                                     info->sha256_hash[i] = '\0';
                                     break;
                                 }
