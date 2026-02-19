@@ -117,8 +117,12 @@ static void battery_read(void)
                      avg_mv, s_percent);
             s_low_battery_warned = true;
         }
-        /* Declencher la mise en veille profonde apres un delai */
-        sleep_manager_request_deep_sleep("battery_critical");
+        /* Declencher la mise en veille profonde (une seule fois) */
+        static bool s_critical_sleep_requested = false;
+        if (!s_critical_sleep_requested) {
+            s_critical_sleep_requested = true;
+            sleep_manager_request_deep_sleep("battery_critical");
+        }
     } else if (avg_mv > MIMI_BATT_CRITICAL_MV + 200) {
         /* Reset l'alerte si la tension remonte suffisamment */
         s_low_battery_warned = false;

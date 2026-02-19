@@ -20,7 +20,7 @@ static display_state_t s_state = DISPLAY_IDLE;
 static lobster_mood_t  s_mood  = MOOD_NEUTRAL;
 static int s_last_distance     = -1;
 static bool s_presence_active  = false;
-static uint32_t s_tick         = 0;
+static volatile uint32_t s_tick         = 0;
 
 /* Variables pour les nouvelles fonctionnalités - volatile car accedees depuis interruptions/timer */
 static volatile uint32_t s_next_blink_tick = 0;
@@ -202,8 +202,8 @@ static void update_attention_memory(bool person_present)
         if (s_has_forgotten) {
             /* On "retrouve" quelqu'un ! Animation de surprise */
             ESP_LOGI(TAG, "Surprise! Personne retrouvee");
-            /* La surprise sera geree dans l'animation */
-            s_mood = MOOD_EXCITED;
+            /* Utilise la transition fluide au lieu de forcer directement */
+            s_target_mood = MOOD_EXCITED;
         }
         s_last_seen_tick = s_tick;
         s_has_forgotten = false;

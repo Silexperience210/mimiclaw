@@ -81,11 +81,16 @@ void sleep_manager_request_deep_sleep(const char *reason)
     
     ESP_LOGW(TAG, "Deep sleep requested (reason: %s), entering in 5s...", s_sleep_reason);
     
-    /* Delai de grace de 5 secondes avant la mise en veille */
-    vTaskDelay(pdMS_TO_TICKS(5000));
+    /* Delai de grace de 5 secondes avant la mise en veille - non bloquant */
+    /* Utilise un timer pour ne pas bloquer la task appelante */
+    xTimerHandle delay_timer = xTimerCreate(
+        "sleep_delay", pdMS_TO_TICKS(5000), pdFALSE, NULL,
+        (TimerCallbackFunction_t)sleep_manager_enter_deep_sleep);
     
-    if (s_deep_sleep_requested) {
-        /* Confirmer que la demande est toujours valide */
+    if (delay_timer) {
+        xTimerStart(delay_timer, 0);
+    } else {
+        /* Fallback: sleep immediat si timer creation echoue */
         sleep_manager_enter_deep_sleep();
     }
 }
