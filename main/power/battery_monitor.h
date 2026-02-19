@@ -23,3 +23,9 @@ int battery_get_percent(void);
  * Retourne la tension batterie en mV.
  */
 int battery_get_voltage_mv(void);
+
+/**
+ * Retourne true si la batterie est en etat critique (sous-tension).
+ * Declenche automatiquement la mise en veille profonde.
+ */
+bool battery_is_critical(void);

@@ -1,6 +1,7 @@
 #include "battery_monitor.h"
 #include "mimi_config.h"
 #include "display/display_ui.h"
+#include "sleep_manager.h"
 
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
@@ -14,9 +15,11 @@ static const char *TAG = "battery";
 static adc_oneshot_unit_handle_t s_adc_handle = NULL;
 static adc_cali_handle_t s_cali_handle = NULL;
 
-static int s_voltage_mv = 0;    /* tension batterie actuelle (mV) */
-static int s_percent = 0;       /* pourcentage 0-100 */
-static bool s_charging = false; /* en charge ? */
+/* Variables partagees - volatile pour eviter les race conditions */
+static volatile int s_voltage_mv = 0;    /* tension batterie actuelle (mV) */
+static volatile int s_percent = 0;       /* pourcentage 0-100 */
+static volatile bool s_charging = false; /* en charge ? */
+static volatile bool s_low_battery_warned = false; /* alerte deja envoyee */
 
 /* Historique pour moyenne glissante */
 static int s_samples[MIMI_BATT_AVG_SAMPLES];
@@ -49,12 +52,20 @@ static void battery_read(void)
 {
     int raw = 0;
     esp_err_t ret = adc_oneshot_read(s_adc_handle, MIMI_BATT_ADC_CHANNEL, &raw);
-    if (ret != ESP_OK) return;
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "ADC read failed: %s", esp_err_to_name(ret));
+        return;
+    }
 
     /* Calibration → tension en mV (cote ADC, avant diviseur) */
     int adc_mv = 0;
     if (s_cali_handle) {
-        adc_cali_raw_to_voltage(s_cali_handle, raw, &adc_mv);
+        ret = adc_cali_raw_to_voltage(s_cali_handle, raw, &adc_mv);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "ADC calibration failed: %s, using fallback", esp_err_to_name(ret));
+            /* Fallback si calibration echoue */
+            adc_mv = raw * 2500 / 4095;
+        }
     } else {
         /* Fallback sans calibration : estimation pour 12-bit, atten 12dB */
         adc_mv = raw * 2500 / 4095;
@@ -83,7 +94,6 @@ static void battery_read(void)
      *
      *  L'hysteresis evite les faux declenchements dus au bruit ADC
      *  et aux oscillations d'une batterie presque pleine (~4100-4200mV).
-     *  La detection de tendance a ete retiree : trop sensible au bruit.
      */
     bool was_charging = s_charging;
 
@@ -98,6 +108,20 @@ static void battery_read(void)
     if (s_charging != was_charging) {
         ESP_LOGI(TAG, "Charge %s (V=%dmV, %d%%)",
                  s_charging ? "DETECTEE" : "TERMINEE", avg_mv, s_percent);
+    }
+
+    /* Protection contre la sous-tension critique */
+    if (!s_charging && avg_mv < MIMI_BATT_CRITICAL_MV) {
+        if (!s_low_battery_warned) {
+            ESP_LOGW(TAG, "BATTERIE CRITIQUE! %dmV (%d%%) - Mise en veille imminente", 
+                     avg_mv, s_percent);
+            s_low_battery_warned = true;
+        }
+        /* Declencher la mise en veille profonde apres un delai */
+        sleep_manager_request_deep_sleep("battery_critical");
+    } else if (avg_mv > MIMI_BATT_CRITICAL_MV + 200) {
+        /* Reset l'alerte si la tension remonte suffisamment */
+        s_low_battery_warned = false;
     }
 }
 
@@ -198,4 +222,9 @@ int battery_get_percent(void)
 int battery_get_voltage_mv(void)
 {
     return s_voltage_mv;
+}
+
+bool battery_is_critical(void)
+{
+    return !s_charging && s_voltage_mv < MIMI_BATT_CRITICAL_MV;
 }

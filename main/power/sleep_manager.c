@@ -14,6 +14,8 @@
 static const char *TAG = "sleep";
 
 static TimerHandle_t s_sleep_timer = NULL;
+static volatile bool s_deep_sleep_requested = false;
+static const char *s_sleep_reason = NULL;
 
 static void sleep_timer_cb(TimerHandle_t timer)
 {
@@ -68,4 +70,22 @@ void sleep_manager_enter_deep_sleep(void)
     /* Deep sleep */
     esp_deep_sleep_start();
     /* Ne revient jamais ici — le CPU reboot au reveil */
+}
+
+void sleep_manager_request_deep_sleep(const char *reason)
+{
+    if (s_deep_sleep_requested) return;  /* Deja demande */
+    
+    s_deep_sleep_requested = true;
+    s_sleep_reason = reason ? reason : "unknown";
+    
+    ESP_LOGW(TAG, "Deep sleep requested (reason: %s), entering in 5s...", s_sleep_reason);
+    
+    /* Delai de grace de 5 secondes avant la mise en veille */
+    vTaskDelay(pdMS_TO_TICKS(5000));
+    
+    if (s_deep_sleep_requested) {
+        /* Confirmer que la demande est toujours valide */
+        sleep_manager_enter_deep_sleep();
+    }
 }

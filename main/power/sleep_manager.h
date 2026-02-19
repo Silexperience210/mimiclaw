@@ -17,3 +17,9 @@ void sleep_manager_reset_timer(void);
  * Eteint l'ecran, configure le wakeup GPIO, puis dort.
  */
 void sleep_manager_enter_deep_sleep(void);
+
+/**
+ * Demande une mise en veille profonde (avec delai de grace).
+ * @param reason Raison de la mise en veille (pour les logs)
+ */
+void sleep_manager_request_deep_sleep(const char *reason);

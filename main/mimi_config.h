@@ -171,7 +171,8 @@
 #define MIMI_BATT_ADC_CHANNEL    ADC_CHANNEL_3
 #define MIMI_BATT_DIVIDER_RATIO  2.0f  /* facteur du pont diviseur */
 #define MIMI_BATT_FULL_MV        4200  /* tension pleine charge (mV) */
-#define MIMI_BATT_EMPTY_MV       3000  /* tension batterie vide (mV) */
+#define MIMI_BATT_EMPTY_MV       3300  /* tension batterie vide (mV) - protege contre la decharge profonde */
+#define MIMI_BATT_CRITICAL_MV    3100  /* seuil critique - declenche la mise en veille */
 #define MIMI_BATT_CHARGE_ON_MV   4350  /* seuil entree en charge (mV) — au-dessus du max batterie */
 #define MIMI_BATT_CHARGE_OFF_MV  4100  /* seuil sortie de charge (mV) — hysteresis */
 #define MIMI_BATT_POLL_MS        2000  /* lecture ADC toutes les 2s */
