@@ -83,7 +83,7 @@ void sleep_manager_request_deep_sleep(const char *reason)
     
     /* Delai de grace de 5 secondes avant la mise en veille - non bloquant */
     /* Utilise un timer pour ne pas bloquer la task appelante */
-    xTimerHandle delay_timer = xTimerCreate(
+    TimerHandle_t delay_timer = xTimerCreate(
         "sleep_delay", pdMS_TO_TICKS(5000), pdFALSE, NULL,
         (TimerCallbackFunction_t)sleep_manager_enter_deep_sleep);
     
