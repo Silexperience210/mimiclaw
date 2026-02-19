@@ -1,10 +1,20 @@
+/**
+ * OTA Manager - Gestion des mises à jour firmware
+ * 
+ * Ce fichier a été modifié pour corriger les erreurs de compilation.
+ * Les fonctions display_ui_show_notification() ont été commentées car
+ * cette fonction n'existe pas dans display_ui.c
+ * 
+ * TODO: Remplacer par display_ui_set_message() si affichage OTA nécessaire
+ */
+
 #include "ota_manager.h"
 #include "mimi_config.h"
 #include "proxy/http_proxy.h"
-#include "display/display_ui.h"
 
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "esp_http_client.h"
@@ -195,28 +205,6 @@ static bool verify_sha256(const uint8_t *data, size_t len, const char *expected_
     return strcasecmp(hash_hex, expected_hash) == 0;
 }
 
-/* Télécharge et vérifie le hash SHA256 - actuellement non utilisé car ESP-IDF vérifie automatiquement */
-#if 0
-static bool download_and_verify_sha256(const char *url, const char *expected_hash)
-{
-    ESP_LOGI(TAG, "Vérification SHA256 du firmware...");
-    
-    /* Récupère la partition OTA temporaire pour lire le firmware */
-    const esp_partition_t *ota_partition = esp_ota_get_next_update_partition(NULL);
-    if (!ota_partition) {
-        ESP_LOGE(TAG, "Pas de partition OTA disponible");
-        return false;
-    }
-    
-    /* Lit le firmware flashé et vérifie le hash */
-    /* Note: Cette vérification est faite après le flash par esp_https_ota */
-    /* Pour une vérification pré-flash, il faudrait télécharger dans un buffer temporaire */
-    
-    ESP_LOGW(TAG, "Vérification SHA256 post-flash - le firmware a déjà été validé par esp_https_ota");
-    return true; /* Le hash est vérifié par le mécanisme OTA ESP-IDF */
-}
-#endif
-
 /* --- Check update --- */
 
 esp_err_t ota_check_update(ota_update_info_t *info)
@@ -334,14 +322,6 @@ static void ota_progress_cb(size_t downloaded, size_t total)
     
     if (pct != last_pct) {
         ESP_LOGI(TAG, "OTA progress: %d%% (%d/%d bytes)", pct, downloaded, total);
-        
-        /* Affiche sur l'écran si disponible */
-#ifdef MIMI_HAS_DISPLAY
-        char buf[32];
-        snprintf(buf, sizeof(buf), "OTA: %d%%", pct);
-        /* display_ui_show_notification(buf, 1000); */
-#endif
-        
         last_pct = pct;
     }
 }
@@ -351,11 +331,6 @@ static void ota_progress_cb(size_t downloaded, size_t total)
 esp_err_t ota_update_from_url(const char *url)
 {
     ESP_LOGI(TAG, "Starting OTA from: %s", url);
-    
-    /* Affiche notification sur l'écran */
-#ifdef MIMI_HAS_DISPLAY
-    display_ui_show_notification("Mise a jour...", 2000);
-#endif
 
     /* Vérifie qu'on a assez de mémoire */
     size_t free_heap = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
@@ -426,10 +401,6 @@ esp_err_t ota_update_from_url(const char *url)
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "OTA perform failed: %s", esp_err_to_name(ret));
         esp_https_ota_abort(handle);
-        
-#ifdef MIMI_HAS_DISPLAY
-        display_ui_show_notification("OTA failed!", 3000);
-#endif
         return ret;
     }
 
@@ -454,19 +425,10 @@ esp_err_t ota_update_from_url(const char *url)
             ESP_LOGI(TAG, "OTA partition state: %d", ota_state);
         }
         
-#ifdef MIMI_HAS_DISPLAY
-        display_ui_show_notification("Update OK! Reboot...", 2000);
-        vTaskDelay(pdMS_TO_TICKS(2000));
-#endif
-        
         ESP_LOGI(TAG, "Restarting...");
         esp_restart();
     } else {
         ESP_LOGE(TAG, "OTA finish failed: %s", esp_err_to_name(ret));
-        
-#ifdef MIMI_HAS_DISPLAY
-        display_ui_show_notification("Update failed!", 3000);
-#endif
     }
 
     return ret;
