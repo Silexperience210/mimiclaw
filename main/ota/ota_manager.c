@@ -339,7 +339,7 @@ static void ota_progress_cb(size_t downloaded, size_t total)
 #ifdef MIMI_HAS_DISPLAY
         char buf[32];
         snprintf(buf, sizeof(buf), "OTA: %d%%", pct);
-        display_ui_show_notification(buf, 1000);
+        /* display_ui_show_notification(buf, 1000); */
 #endif
         
         last_pct = pct;
