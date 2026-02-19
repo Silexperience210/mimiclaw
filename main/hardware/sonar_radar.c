@@ -79,21 +79,25 @@ void sonar_radar_update(uint8_t servo_angle, int distance)
 
 uint8_t sonar_radar_next_sweep_angle(void)
 {
-    /* Calcule le prochain angle de balayage */
+    /* Calcule l'angle actuel */
     uint8_t angle = sonar_radar_index_to_angle(s_sweep_idx);
 
+    /* Avance l'index pour le prochain appel */
     s_sweep_idx += s_sweep_dir;
 
     /* Inversion de direction aux bords */
     if (s_sweep_idx >= RADAR_POINTS) {
-        s_sweep_idx = RADAR_POINTS - 1;
+        /* On a atteint la fin (135°), on rebrousse chemin */
+        s_sweep_idx = RADAR_POINTS - 2;  /* -2 pour éviter de répéter 135° */
         s_sweep_dir = -1;
-        /* Fin d'un sweep complet → decaler historique */
         sonar_radar_new_sweep();
+        ESP_LOGD(TAG, "Sweep reverse at max: -> %d°", sonar_radar_index_to_angle(s_sweep_idx));
     } else if (s_sweep_idx < 0) {
-        s_sweep_idx = 0;
+        /* On a atteint le début (45°), on rebrousse chemin */
+        s_sweep_idx = 1;  /* +1 pour éviter de répéter 45° */
         s_sweep_dir = 1;
         sonar_radar_new_sweep();
+        ESP_LOGD(TAG, "Sweep reverse at min: -> %d°", sonar_radar_index_to_angle(s_sweep_idx));
     }
 
     return angle;
