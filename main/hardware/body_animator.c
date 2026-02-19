@@ -37,15 +37,283 @@ static int s_dist_idx          = 0;
 /* Dernier geste detecte (pour actions) */
 static gesture_t s_last_gesture = GESTURE_NONE;
 
-/* --- Helpers --- */
+/* --- NOUVEAUX : Personnalite vivante --- */
 
-static uint8_t clamp_angle(int a)
+/* 1. Respiration emotionnelle parametree */
+typedef struct {
+    int amplitude;
+    int period;
+    float irregularity; /* 0.0 = regulier, 1.0 = tres irregulier */
+} breathe_params_t;
+
+static breathe_params_t get_breathe_params(void)
 {
-    if (a < 0)   return 0;
-    if (a > 180) return 180;
-    return (uint8_t)a;
+    breathe_params_t p = {12, 30, 0.0f}; /* default: calme */
+    
+    switch (s_mood) {
+    case MOOD_EXCITED:
+        p.amplitude = 20;
+        p.period = 15;
+        p.irregularity = 0.3f;
+        break;
+    case MOOD_SLEEPY:
+        p.amplitude = 5;
+        p.period = 60;
+        p.irregularity = 0.5f; /* pauses irregulieres */
+        break;
+    case MOOD_FOCUSED:
+        p.amplitude = 3;
+        p.period = 40;
+        p.irregularity = 0.0f;
+        break;
+    case MOOD_PROUD:
+        p.amplitude = 8;
+        p.period = 25;
+        p.irregularity = 0.1f;
+        break;
+    case MOOD_HAPPY:
+        p.amplitude = 15;
+        p.period = 20;
+        p.irregularity = 0.2f;
+        break;
+    default: /* NEUTRAL */
+        break;
+    }
+    return p;
 }
 
+/* Respiration avec irregularite pour plus de naturel */
+static uint8_t breathe_emotional(uint8_t center)
+{
+    breathe_params_t p = get_breathe_params();
+    
+    float base = sinf((float)s_tick / p.period);
+    
+    /* Ajout d'irregularite */
+    if (p.irregularity > 0.0f) {
+        float noise = ((float)(esp_random() % 100) / 100.0f - 0.5f) * p.irregularity;
+        base += noise;
+        if (base > 1.0f) base = 1.0f;
+        if (base < -1.0f) base = -1.0f;
+    }
+    
+    /* Mode sleepy : pauses aleatoires */
+    if (s_mood == MOOD_SLEEPY && (esp_random() % 200) < 5) {
+        /* Pause respiratoire : pas de mouvement */
+        return center;
+    }
+    
+    return clamp_angle(center + (int)(base * p.amplitude));
+}
+
+/* 2. Micro-expressions : clignements et sourcils */
+static uint32_t s_next_blink_tick = 0;
+static bool s_is_blinking = false;
+static uint32_t s_blink_end_tick = 0;
+
+static void update_blink_schedule(void)
+{
+    if (s_tick >= s_next_blink_tick && !s_is_blinking) {
+        /* Debut d'un clignement */
+        s_is_blinking = true;
+        s_blink_end_tick = s_tick + 3; /* 3 ticks = ~600ms */
+        /* Prochain clignement dans 3-7 secondes */
+        s_next_blink_tick = s_tick + 15 + (esp_random() % 25);
+    }
+    if (s_is_blinking && s_tick >= s_blink_end_tick) {
+        s_is_blinking = false;
+    }
+}
+
+/* Applique le clignement aux pinces (fermeture rapide) */
+static uint8_t apply_blink(uint8_t claw_angle)
+{
+    if (!s_is_blinking) return claw_angle;
+    /* Fermeture rapide pendant le clignement */
+    return clamp_angle(claw_angle - 40);
+}
+
+/* 3. Regard vivant avec micro-mouvements et saccades */
+static int s_gaze_target_h = 90;
+static int s_gaze_target_v = 90;
+static int s_gaze_current_h = 90;
+static int s_gaze_current_v = 90;
+static uint32_t s_next_saccade_tick = 0;
+static bool s_gaze_fixated = false;
+static uint32_t s_fixation_end_tick = 0;
+
+static void update_living_gaze(void)
+{
+    /* Saccades : changements brusques de direction */
+    if (s_tick >= s_next_saccade_tick && !s_gaze_fixated) {
+        /* Nouvelle cible de regard proche de l'actuelle */
+        s_gaze_target_h += (esp_random() % 20) - 10;
+        s_gaze_target_v += (esp_random() % 15) - 7;
+        s_gaze_target_h = clamp_angle(s_gaze_target_h);
+        s_gaze_target_v = clamp_angle(s_gaze_target_v);
+        
+        /* Prochaine saccade dans 0.5-2 secondes */
+        s_next_saccade_tick = s_tick + 3 + (esp_random() % 10);
+        
+        /* 10% de chance de fixation (regard fige) */
+        if ((esp_random() % 100) < 10) {
+            s_gaze_fixated = true;
+            s_fixation_end_tick = s_tick + 10 + (esp_random() % 20);
+        }
+    }
+    
+    /* Fin de fixation */
+    if (s_gaze_fixated && s_tick >= s_fixation_end_tick) {
+        s_gaze_fixated = false;
+    }
+    
+    /* Interpolation douce vers la cible */
+    float speed = s_gaze_fixated ? 0.02f : 0.15f; /* plus lent en fixation */
+    s_gaze_current_h += (int)((s_gaze_target_h - s_gaze_current_h) * speed);
+    s_gaze_current_v += (int)((s_gaze_target_v - s_gaze_current_v) * speed);
+}
+
+/* 4. Memoire d'attention avec "oubli" progressif */
+static uint32_t s_last_seen_tick = 0;
+static bool s_has_forgotten = true;
+
+static void update_attention_memory(bool person_present)
+{
+    if (person_present) {
+        if (s_has_forgotten) {
+            /* On "retrouve" quelqu'un ! Animation de surprise */
+            ESP_LOGI(TAG, "Surprise! Personne retrouvee");
+            /* La surprise sera geree dans l'animation */
+            s_mood = MOOD_EXCITED;
+        }
+        s_last_seen_tick = s_tick;
+        s_has_forgotten = false;
+    } else {
+        /* Oubli apres 30 secondes (~150 ticks a 200ms) */
+        if (!s_has_forgotten && (s_tick - s_last_seen_tick) > 150) {
+            s_has_forgotten = true;
+            ESP_LOGI(TAG, "Oubli de la personne");
+        }
+    }
+}
+
+/* 5. Humeur degradee avec transitions fluides */
+static float s_mood_level = 0.0f; /* -1.0 = triste, 0 = neutre, 1.0 = joyeux */
+static lobster_mood_t s_target_mood = MOOD_NEUTRAL;
+
+static void update_mood_transition(void)
+{
+    /* Transition douce vers l'humeur cible */
+    float target_level = 0.0f;
+    switch (s_target_mood) {
+    case MOOD_HAPPY:   target_level = 0.7f; break;
+    case MOOD_EXCITED: target_level = 1.0f; break;
+    case MOOD_SLEEPY:  target_level = -0.3f; break;
+    case MOOD_FOCUSED: target_level = 0.2f; break;
+    case MOOD_PROUD:   target_level = 0.8f; break;
+    default:           target_level = 0.0f; break;
+    }
+    
+    /* Interpolation lente */
+    s_mood_level += (target_level - s_mood_level) * 0.05f;
+    
+    /* Mise a jour de l'humeur effective basee sur le niveau */
+    if (s_mood_level > 0.8f) s_mood = MOOD_EXCITED;
+    else if (s_mood_level > 0.5f) s_mood = MOOD_HAPPY;
+    else if (s_mood_level > 0.2f) s_mood = MOOD_PROUD;
+    else if (s_mood_level > -0.2f) s_mood = MOOD_NEUTRAL;
+    else s_mood = MOOD_SLEEPY;
+}
+
+void body_animator_set_mood(lobster_mood_t mood)
+{
+    s_target_mood = mood; /* On ne change pas directement, on transitionne */
+}
+
+/* 6. Comportements autonomes */
+static uint32_t s_next_autonomous_action = 0;
+static bool s_is_yawning = false;
+static uint32_t s_yawn_end_tick = 0;
+
+static void handle_autonomous_behaviors(bool person_present)
+{
+    /* Bâillement apres 5min d'inactivite (1500 ticks) */
+    if (!person_present && !s_is_yawning && s_tick > 1500) {
+        if (s_tick >= s_next_autonomous_action && (esp_random() % 500) < 5) {
+            s_is_yawning = true;
+            s_yawn_end_tick = s_tick + 30; /* 6 secondes */
+            ESP_LOGI(TAG, "*Baille*");
+        }
+    }
+    
+    if (s_is_yawning && s_tick >= s_yawn_end_tick) {
+        s_is_yawning = false;
+        s_next_autonomous_action = s_tick + 100 + (esp_random() % 200);
+    }
+    
+    /* Regard perdu (pensif) */
+    if (!person_present && !s_is_yawning && s_mood == MOOD_NEUTRAL) {
+        if ((esp_random() % 1000) < 2) { /* 0.2% par tick */
+            /* Regard dans le vide */
+            s_gaze_target_h = 45 + (esp_random() % 90);
+            s_gaze_target_v = 60 + (esp_random() % 40);
+            s_gaze_fixated = true;
+            s_fixation_end_tick = s_tick + 50 + (esp_random() % 50);
+            ESP_LOGI(TAG, "Regard perdu dans le vide...");
+        }
+    }
+}
+
+/* Animation de surprise quand on retrouve quelqu'un */
+static void anim_surprise(void)
+{
+    /* Recul rapide */
+    servo_set_angle_immediate(SERVO_HEAD_H, clamp_angle(s_gaze_current_h - 15));
+    servo_set_angle_immediate(SERVO_HEAD_V, clamp_angle(s_gaze_current_v + 20));
+    servo_set_angle_immediate(SERVO_CLAW_L, 180);
+    servo_set_angle_immediate(SERVO_CLAW_R, 180);
+}
+
+/* Animation de baillement */
+static void anim_yawn(void)
+{
+    float progress = (float)(s_yawn_end_tick - s_tick) / 30.0f;
+    if (progress > 0.5f) {
+        /* Ouverture de la gueule */
+        uint8_t jaw = (uint8_t)(180 - (progress - 0.5f) * 2 * 100);
+        servo_set_angle_immediate(SERVO_CLAW_L, jaw);
+        servo_set_angle_immediate(SERVO_CLAW_R, jaw);
+    } else {
+        /* Fermeture */
+        uint8_t jaw = (uint8_t)(80 + progress * 2 * 100);
+        servo_set_angle_immediate(SERVO_CLAW_L, jaw);
+        servo_set_angle_immediate(SERVO_CLAW_R, jaw);
+    }
+    /* Tete en arriere */
+    servo_set_angle_immediate(SERVO_HEAD_V, clamp_angle(110 + (int)(sinf(progress * 3.14f) * 20)));
+}
+
+/* --- ANIMATIONS MODIFIEES --- */
+
+/* IDLE modifie avec respiration emotionnelle */
+static void anim_idle(void)
+{
+    update_blink_schedule();
+    update_living_gaze();
+    
+    uint8_t hh = breathe_emotional((uint8_t)s_gaze_current_h);
+    uint8_t hv = breathe_emotional((uint8_t)s_gaze_current_v);
+    
+    servo_set_angle_immediate(SERVO_HEAD_H, hh);
+    servo_set_angle_immediate(SERVO_HEAD_V, hv);
+    
+    uint8_t cl = apply_blink(breathe_emotional(20));
+    uint8_t cr = apply_blink(breathe_emotional(20));
+    servo_set_angle_immediate(SERVO_CLAW_L, cl);
+    servo_set_angle_immediate(SERVO_CLAW_R, cr);
+}
+
+/* Ancienne fonction breathe (gardee pour compatibilite) */
 static uint8_t breathe(uint8_t center, int amplitude, int speed)
 {
     float v = sinf((float)s_tick / speed) * amplitude;
@@ -625,6 +893,26 @@ static void body_animator_task(void *arg)
 
         /* --- Mode normal : tracking + animations --- */
 
+        /* Mise a jour des systemes de personnalite */
+        update_mood_transition();
+        update_attention_memory(s_presence_active);
+        handle_autonomous_behaviors(s_presence_active);
+
+        /* Animation de surprise si on vient de retrouver quelqu'un */
+        if (s_mood == MOOD_EXCITED && s_has_forgotten == false && 
+            (s_tick - s_last_seen_tick) < 5) {
+            anim_surprise();
+            vTaskDelay(pdMS_TO_TICKS(MIMI_US_POLL_MS));
+            continue;
+        }
+
+        /* Animation de baillement */
+        if (s_is_yawning) {
+            anim_yawn();
+            vTaskDelay(pdMS_TO_TICKS(MIMI_US_POLL_MS));
+            continue;
+        }
+
         /* Mise a jour du tracking */
         tracking_update(dist);
 
@@ -694,10 +982,7 @@ void body_animator_set_state(display_state_t state)
     s_state = state;
 }
 
-void body_animator_set_mood(lobster_mood_t mood)
-{
-    s_mood = mood;
-}
+/* body_animator_set_mood est maintenant defini plus haut avec transition fluide */
 
 void body_animator_sleep(void)
 {
